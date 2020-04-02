@@ -16,6 +16,11 @@ const int numberOfPhilosophers{5};
 // Klasa obslugująca wypisywanie tekstu na ekranie 
 class ScreenManager {
 public:
+   static void printElement(std::string const & text, int xPos, int yPos) {     
+      //mvprintw(xPos, yPos + 1, "'\b'");
+      mvprintw(xPos, yPos, "%s", text.c_str());        
+      refresh();	
+   }
    static void print(std::string const & text, int xPos, int id) {
          move(xPos, 0);       
          clrtoeol();      
@@ -34,13 +39,61 @@ public:
 
 struct Fork {
    std::mutex mutex;
-   bool isUsed{false};
+   bool isUsed{ false };
 };
 
 struct Table {
    std::atomic<bool> ready{false}; // zmienna atomowa, poniewaz korzystaja z nie wszystkie watki filozofow w tym samym momencie
+   
    std::array<Fork, numberOfPhilosophers> forks;
 };
+
+
+
+
+
+struct Mine {
+   std::mutex mutex;
+};
+
+struct LaserPickaxe {
+   std::mutex leftHandMutex;
+   std::mutex rightHandMutex;
+};
+
+struct Limonium {
+   std::mutex mutex;
+};
+
+struct Metal {
+   std::mutex mutex;
+};
+
+struct Wire {
+   std::mutex mutex;
+};
+
+struct Spaceship {
+   std::vector<std::mutex> workplaces;
+};
+
+// Gather Limonium from Mines using LaserPickaxe
+class Gatherer {
+   std::thread lifeThread;
+};
+
+// Converts Limonium into Metal or Wire
+class Worker {
+   std::thread lifeThread;
+   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+};
+
+// Gets Metal or Wire and carries it to the Spaceship
+class Builder {
+   std::thread lifeThread;
+};
+
+
 
 // Klasa filozowa, ktora po utworzeniu rozpoczyna dzialanie watku jako funkcji dine()
 class Philosopher {
@@ -165,15 +218,15 @@ void beginSimulation() {
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
    while(table.ready == true) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
       ScreenManager::print("PHILOSOPHERS", 0);
       for(auto& philosopher : philosophers) {    
-         ScreenManager::print(philosopher.getState(), philosopher.getID(), philosopher.getID());
+         ScreenManager::printElement(philosopher.getState(), 1, 1);
       }   
       ScreenManager::print("FORKS 0 - available 1 - used", 7);
       for (int i = 0; i < numberOfPhilosophers; i++)
       {
-         ScreenManager::print(std::to_string(table.forks[i].isUsed), i + 8, i + 1);
+         ScreenManager::print(std::to_string(table.forks[i].isUsed), i + 8, i + 1);  
       }
 
       ScreenManager::print("Press q for exit", 18);   
@@ -183,8 +236,7 @@ void beginSimulation() {
 }
  
 int main() 
-{ 	
-   
+{ 	  
    try {
       initscr();		
       beginSimulation();                  		
@@ -194,4 +246,4 @@ int main()
    }
  					
 	return 0; 
-} 
+}
