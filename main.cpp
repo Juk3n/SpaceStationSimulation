@@ -18,9 +18,10 @@ class ScreenManager {
 public:
    static void printElement(std::string const & text, int xPos, int yPos) {     
       //mvprintw(xPos, yPos + 1, "'\b'");
-      mvprintw(xPos, yPos, "%s", text.c_str());        
+      mvprintw(yPos, xPos, "%s", text.c_str());        
       refresh();	
    }
+
    static void print(std::string const & text, int xPos, int id) {
          move(xPos, 0);       
          clrtoeol();      
@@ -29,10 +30,10 @@ public:
          refresh();			
    }
 
-   static void print(std::string const & text, int xPos) {
-         move(xPos, 0);       
+   static void print(std::string const & text, int yPos) {
+         move(yPos, 0);       
          clrtoeol();               
-         mvprintw(xPos, 0, "%s", text.c_str());        
+         mvprintw(yPos, 0, "%s", text.c_str());        
          refresh();			
    }
 };
@@ -50,47 +51,126 @@ struct Table {
 
 
 
+struct Position {
+   int x;
+   int y;
 
+   enum class Direction {
+      LEFT,
+      RIGHT,
+      UP,
+      DOWN
+   };
+
+   // direction are suited to ncurses
+   void move(Direction dir) {
+      switch(dir) {
+         case Direction::UP:
+            y--;
+            break;
+         case Direction::DOWN:
+            y++;
+            break;
+         case Direction::LEFT:
+            x--;
+            break;
+         case Direction::RIGHT:
+            x++;
+            break;
+      }
+   }
+};
 
 struct Mine {
    std::mutex mutex;
+   Position position;
 };
 
 struct LaserPickaxe {
    std::mutex leftHandMutex;
    std::mutex rightHandMutex;
+   Position position;
 };
 
 struct Limonium {
    std::mutex mutex;
+   Position position;
 };
 
 struct Metal {
    std::mutex mutex;
+   Position position;
 };
 
 struct Wire {
    std::mutex mutex;
+   Position position;
 };
 
 struct Spaceship {
    std::vector<std::mutex> workplaces;
+   Position position;
 };
 
 // Gather Limonium from Mines using LaserPickaxe
 class Gatherer {
    std::thread lifeThread;
+   Position position;
+
+public:
+   Gatherer() :
+      lifeThread(&Gatherer::live, this)
+   {
+      
+   }
+
+   void live() {
+
+   }
 };
 
 // Converts Limonium into Metal or Wire
 class Worker {
    std::thread lifeThread;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+   Position position;
+
+public:
+   Worker() :
+      lifeThread(&Worker::live, this)
+   {
+      
+   }
+
+   
+
+   void live() {
+
+   }
 };
 
 // Gets Metal or Wire and carries it to the Spaceship
 class Builder {
    std::thread lifeThread;
+   Position position;
+
+public:
+   Builder() :
+      lifeThread(&Builder::live, this)
+   {
+      position = Position{0, 0};
+   }
+
+   void live() {
+      while(true) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(500));
+         position.move(Position::Direction::RIGHT);
+      }
+   }  
+
+   Position getPosition() {
+      return position;
+   }
 };
 
 
@@ -199,51 +279,29 @@ public:
 };
 
 void beginSimulation() {
-   Table table;
    
-   std::array<Philosopher, numberOfPhilosophers> philosophers {
-      {
-         { 1, table, table.forks[0], table.forks[1] },
-         { 2, table, table.forks[1], table.forks[2] },
-         { 3, table, table.forks[2], table.forks[3] },
-         { 4, table, table.forks[3], table.forks[4] },
-         { 5, table, table.forks[4], table.forks[0] },
-      }
-   };
    
-   // w tym momencie filozofowie rozpoczną myślenie/jedzenie
-   table.ready = true;
+   Builder builder;
    
-   ProcessExit processExit{table};
+   // w tym momencie ludzie rozpoczną myślenie/jedzenie
+   //map.ready = true;
+   
+   //ProcessExit processExit{table};
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
-   while(table.ready == true) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-      ScreenManager::print("PHILOSOPHERS", 0);
-      for(auto& philosopher : philosophers) {    
-         ScreenManager::printElement(philosopher.getState(), 1, 1);
-      }   
-      ScreenManager::print("FORKS 0 - available 1 - used", 7);
-      for (int i = 0; i < numberOfPhilosophers; i++)
-      {
-         ScreenManager::print(std::to_string(table.forks[i].isUsed), i + 8, i + 1);  
-      }
-
-      ScreenManager::print("Press q for exit", 18);   
+   while(true) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(300));
+      ScreenManager::print(std::to_string(builder.getPosition().x), 0);
    } 
    ScreenManager::print("Waiting for all threads to end...", 18); 
    ScreenManager::print("Screen is not refreshing now.", 19);
 }
  
 int main() 
-{ 	  
-   try {
-      initscr();		
-      beginSimulation();                  		
-	   endwin();
-   } catch(...) {
-      std::cout << "xD";
-   }
- 					
+{ 	    
+   initscr();		
+   beginSimulation();                  		
+	endwin();
+					
 	return 0; 
 }
