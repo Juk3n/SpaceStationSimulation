@@ -6,10 +6,10 @@
 #include <atomic>
 #include <chrono>
 #include <string>
-#include <string>
 #include <random>
 #include <ctime>
 #include <memory>
+#include <fstream>
 
 const int numberOfPhilosophers{5};
 
@@ -52,11 +52,46 @@ struct Table {
    std::array<Fork, numberOfPhilosophers> forks;
 };
 
+// reading file class from another project, will be used as a base
+class myMapFile
+{
+	std::ifstream file;
+public:
+	myMapFile(std::string fileName) {
+      file = std::ifstream{ fileName.c_str() };
+    
+      if (!file);
+        //myOutput::displayOnScreen("Nie udalo sie odczytac pliku");
+   }
+
+	~myMapFile() {
+      file.close();
+   }
+
+   int readMapWidth() {
+      std::string value;
+      getline(file,value);
+      return std::stoi(value);
+   }
+
+   int readMapHeight() {
+      std::string value;
+      getline(file,value);
+      return std::stoi(value);
+   }
+
+	std::string readNextLine() {
+      std::string line;
+      getline(file,line);
+      return line;
+   }
+};
+
+
 // not included to classes, I will add if need to extend graphic features
 struct GraphicRepresentation {
    std::string graphic;
 };
-
 
 struct Position {
    int x;
@@ -118,6 +153,30 @@ struct Wire {
 struct Spaceship {
    std::vector<std::mutex> workplaces;
    Position position;
+};
+
+class Map {
+   std::atomic<bool> ready{ false };
+
+   int width;
+   int height;
+
+   std::vector<std::string> mapGraphics;
+
+   std::array<Mine, 3> mines;
+   std::array<LaserPickaxe, 10> laserPickaxes;
+   std::vector<Limonium> limoniums;
+   std::vector<Metal> metals;
+   std::vector<Wire> wires;
+   Spaceship spaceship;
+
+   void readMapFromFile(std::string fileName) {
+      myMapFile file(fileName);
+      width = file.readMapWidth();
+      height = file.readMapHeight();
+      for(int i = 0; i < height; i++)
+         mapGraphics.push_back(file.readNextLine());
+   }
 };
 
 // Gather Limonium from Mines using LaserPickaxe
