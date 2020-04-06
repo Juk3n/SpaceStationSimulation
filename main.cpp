@@ -16,8 +16,11 @@ const int numberOfPhilosophers{5};
 // Klasa obslugująca wypisywanie tekstu na ekranie 
 class ScreenManager {
 public:
+   static void clearElement(int xPos, int yPos) {
+      mvprintw(yPos, xPos, " ");
+   }
+
    static void printElement(std::string const & text, int xPos, int yPos) {     
-      //mvprintw(xPos, yPos + 1, "'\b'");
       mvprintw(yPos, xPos, "%s", text.c_str());        
       refresh();	
    }
@@ -49,6 +52,10 @@ struct Table {
    std::array<Fork, numberOfPhilosophers> forks;
 };
 
+// not included to classes, I will add if need to extend graphic features
+struct GraphicRepresentation {
+   std::string graphic;
+};
 
 
 struct Position {
@@ -64,6 +71,7 @@ struct Position {
 
    // direction are suited to ncurses
    void move(Direction dir) {
+      ScreenManager::clearElement(x, y); // old position should be cleared
       switch(dir) {
          case Direction::UP:
             y--;
@@ -116,6 +124,7 @@ struct Spaceship {
 class Gatherer {
    std::thread lifeThread;
    Position position;
+   std::string graphicRepresentation{"G"};
 
 public:
    Gatherer() :
@@ -125,7 +134,18 @@ public:
    }
 
    void live() {
+      while(true) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(600));
+         position.move(Position::Direction::DOWN);
+      }
+   }
 
+   Position getPosition() {
+      return position;
+   }
+
+   std::string getGraphicRepresentation() {
+      return graphicRepresentation;
    }
 };
 
@@ -134,6 +154,7 @@ class Worker {
    std::thread lifeThread;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
    Position position;
+   std::string graphicRepresentation{"W"};
 
 public:
    Worker() :
@@ -142,10 +163,19 @@ public:
       
    }
 
-   
-
    void live() {
+      while(true) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(700));
+         position.move(Position::Direction::RIGHT);
+      }
+   }
 
+   Position getPosition() {
+      return position;
+   }
+
+   std::string getGraphicRepresentation() {
+      return graphicRepresentation;
    }
 };
 
@@ -153,6 +183,7 @@ public:
 class Builder {
    std::thread lifeThread;
    Position position;
+   std::string graphicRepresentation{"B"};
 
 public:
    Builder() :
@@ -165,11 +196,16 @@ public:
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500));
          position.move(Position::Direction::RIGHT);
+         position.move(Position::Direction::DOWN);
       }
    }  
 
    Position getPosition() {
       return position;
+   }
+
+   std::string getGraphicRepresentation() {
+      return graphicRepresentation;
    }
 };
 
@@ -281,7 +317,9 @@ public:
 void beginSimulation() {
    
    
-   Builder builder;
+   std::array<Builder, 5> builders;
+   std::array<Worker, 5> workers;
+   std::array<Gatherer, 5> gatherers;
    
    // w tym momencie ludzie rozpoczną myślenie/jedzenie
    //map.ready = true;
@@ -291,7 +329,18 @@ void beginSimulation() {
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
    while(true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
-      ScreenManager::print(std::to_string(builder.getPosition().x), 0);
+
+      for(auto& builder : builders) {
+         ScreenManager::printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
+      }
+
+      for(auto& worker : workers) {
+         ScreenManager::printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y);
+      }
+
+      for(auto& gatherer : gatherers) {
+         ScreenManager::printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y);
+      }
    } 
    ScreenManager::print("Waiting for all threads to end...", 18); 
    ScreenManager::print("Screen is not refreshing now.", 19);
