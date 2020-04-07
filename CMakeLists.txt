@@ -8,7 +8,7 @@ find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIR})
 
 file(GLOB SOURCES "*.cpp")
-add_executable(spacesim main.cpp)
+add_executable(spacesim ${SOURCES})
 
 target_link_libraries(spacesim ${CURSES_LIBRARIES} pthread)
 

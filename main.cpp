@@ -9,7 +9,8 @@
 #include <random>
 #include <ctime>
 #include <memory>
-#include <fstream>
+
+#include "MapFile.hpp"
 
 const int numberOfPhilosophers{5};
 
@@ -22,6 +23,11 @@ public:
 
    static void printElement(std::string const & text, int xPos, int yPos) {     
       mvprintw(yPos, xPos, "%s", text.c_str());        
+      refresh();	
+   }
+
+   static void printLine(std::string const & text,  int yPos) {
+      mvprintw(yPos, 0, "%s", text.c_str());        
       refresh();	
    }
 
@@ -52,40 +58,7 @@ struct Table {
    std::array<Fork, numberOfPhilosophers> forks;
 };
 
-// reading file class from another project, will be used as a base
-class myMapFile
-{
-	std::ifstream file;
-public:
-	myMapFile(std::string fileName) {
-      file = std::ifstream{ fileName.c_str() };
-    
-      if (!file);
-        //myOutput::displayOnScreen("Nie udalo sie odczytac pliku");
-   }
 
-	~myMapFile() {
-      file.close();
-   }
-
-   int readMapWidth() {
-      std::string value;
-      getline(file,value);
-      return std::stoi(value);
-   }
-
-   int readMapHeight() {
-      std::string value;
-      getline(file,value);
-      return std::stoi(value);
-   }
-
-	std::string readNextLine() {
-      std::string line;
-      getline(file,line);
-      return line;
-   }
-};
 
 
 // not included to classes, I will add if need to extend graphic features
@@ -94,8 +67,8 @@ struct GraphicRepresentation {
 };
 
 struct Position {
-   int x;
-   int y;
+   int x = 1;
+   int y = 1;
 
    enum class Direction {
       LEFT,
@@ -156,6 +129,7 @@ struct Spaceship {
 };
 
 class Map {
+public:
    std::atomic<bool> ready{ false };
 
    int width;
@@ -248,7 +222,7 @@ public:
    Builder() :
       lifeThread(&Builder::live, this)
    {
-      position = Position{0, 0};
+      position = Position{1, 1};
    }
 
    void live() {
@@ -374,7 +348,8 @@ public:
 };
 
 void beginSimulation() {
-   
+   Map map{};
+   map.readMapFromFile("/home/adrian/Documents/SpaceStationSimulation/map.txt");
    
    std::array<Builder, 5> builders;
    std::array<Worker, 5> workers;
@@ -386,6 +361,11 @@ void beginSimulation() {
    //ProcessExit processExit{table};
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
+   
+   int i{};
+   for(const auto& mapLine : map.mapGraphics) 
+      ScreenManager::printLine(mapLine, i++);
+   
    while(true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
@@ -407,7 +387,8 @@ void beginSimulation() {
  
 int main() 
 { 	    
-   initscr();		
+   initscr();	
+   WINDOW * win = newwin(10, 50, 0, 0);	
    beginSimulation();                  		
 	endwin();
 					
