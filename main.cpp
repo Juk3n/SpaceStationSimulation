@@ -15,35 +15,50 @@
 const int numberOfPhilosophers{5};
 
 // Klasa obslugująca wypisywanie tekstu na ekranie 
-class ScreenManager {
+class Screen {
+   WINDOW* win;
 public:
-   static void clearElement(int xPos, int yPos) {
-      mvprintw(yPos, xPos, " ");
+   Screen() {
+      initscr();	
+      win = newwin(43, 132, 0, 0);
    }
 
-   static void printElement(std::string const & text, int xPos, int yPos) {     
-      mvprintw(yPos, xPos, "%s", text.c_str());        
-      refresh();	
+   ~Screen() {
+      delwin(win);
+      endwin();
    }
 
-   static void printLine(std::string const & text,  int yPos) {
-      mvprintw(yPos, 0, "%s", text.c_str());        
-      refresh();	
+   void xd() {
+      waddch(win, 'a'); 
+      wrefresh(win); 
+      for (size_t i = 0; i < 20; i++)
+      {
+         //y, x
+         wmove(win, i, 40);
+         waddstr(win, "aaaaa");
+      } 
+      wrefresh(win);
    }
 
-   static void print(std::string const & text, int xPos, int id) {
-         move(xPos, 0);       
-         clrtoeol();      
-         mvprintw(xPos, 0, "%s", std::to_string(id).c_str());
-         mvprintw(xPos, 3, "%s", text.c_str());        
-         refresh();			
+   void clearScreen() {
+      wclear(win);
    }
 
-   static void print(std::string const & text, int yPos) {
-         move(yPos, 0);       
-         clrtoeol();               
-         mvprintw(yPos, 0, "%s", text.c_str());        
-         refresh();			
+   void clearElement(int xPos, int yPos) {
+      wmove(win, yPos, xPos);
+      waddch(win, ' ');
+   }
+
+   void printElement(std::string const & text, int xPos, int yPos) {     
+      wmove(win, yPos, xPos);
+      waddstr(win, text.c_str());        
+      wrefresh(win);	
+   }
+
+   void printLine(std::string const & text,  int yPos) {
+      wmove(win, yPos, 0);
+      waddstr(win, text.c_str());        
+      wrefresh(win);	
    }
 };
 
@@ -79,7 +94,6 @@ struct Position {
 
    // direction are suited to ncurses
    void move(Direction dir) {
-      ScreenManager::clearElement(x, y); // old position should be cleared
       switch(dir) {
          case Direction::UP:
             y--;
@@ -227,7 +241,7 @@ public:
 
    void live() {
       while(true) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(500));
+         std::this_thread::sleep_for(std::chrono::milliseconds(500));       
          position.move(Position::Direction::RIGHT);
          position.move(Position::Direction::DOWN);
       }
@@ -361,36 +375,34 @@ void beginSimulation() {
    //ProcessExit processExit{table};
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
-   
+   Screen screen;
    int i{};
    for(const auto& mapLine : map.mapGraphics) 
-      ScreenManager::printLine(mapLine, i++);
+      screen.printLine(mapLine, i++);
    
    while(true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
+      screen.clearScreen();
 
       for(auto& builder : builders) {
-         ScreenManager::printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
+         screen.printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
       }
 
       for(auto& worker : workers) {
-         ScreenManager::printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y);
+         screen.printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y);
       }
 
       for(auto& gatherer : gatherers) {
-         ScreenManager::printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y);
+         screen.printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y);
       }
    } 
-   ScreenManager::print("Waiting for all threads to end...", 18); 
-   ScreenManager::print("Screen is not refreshing now.", 19);
+   screen.printLine("Waiting for all threads to end...", 18); 
+   screen.printLine("Screen is not refreshing now.", 19);
 }
  
 int main() 
-{ 	    
-   initscr();	
-   WINDOW * win = newwin(10, 50, 0, 0);	
-   beginSimulation();                  		
-	endwin();
-					
+{ 	      	
+   beginSimulation(); 
+				
 	return 0; 
 }
