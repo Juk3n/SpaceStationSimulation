@@ -172,15 +172,18 @@ class Gatherer {
    std::thread lifeThread;
    Position position;
    std::string graphicRepresentation{"G"};
+   Map const& map;
 
 public:
-   Gatherer() :
-      lifeThread(&Gatherer::live, this)
+   Gatherer(Map const& map) :
+      map(map), lifeThread(&Gatherer::live, this)
    {
       
    }
 
    void live() {
+      while(!map.ready) {};
+      
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(600));
          position.move(Position::Direction::DOWN);
@@ -202,15 +205,18 @@ class Worker {
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
    Position position;
    std::string graphicRepresentation{"W"};
+   Map const& map;
 
 public:
-   Worker() :
-      lifeThread(&Worker::live, this)
+   Worker(Map const& map) :
+      map(map), lifeThread(&Worker::live, this)
    {
       
    }
 
    void live() {
+      while(!map.ready) {};
+
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(700));
          position.move(Position::Direction::RIGHT);
@@ -231,15 +237,18 @@ class Builder {
    std::thread lifeThread;
    Position position;
    std::string graphicRepresentation{"B"};
+   Map const& map;
 
 public:
-   Builder() :
-      lifeThread(&Builder::live, this)
+   Builder(Map const& map) :
+      map(map), lifeThread(&Builder::live, this)
    {
       position = Position{1, 1};
    }
 
    void live() {
+      while(!map.ready) {};
+
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500));       
          position.move(Position::Direction::RIGHT);
@@ -365,24 +374,43 @@ void beginSimulation() {
    Map map{};
    map.readMapFromFile("/home/adrian/Documents/SpaceStationSimulation/map.txt");
    
-   std::array<Builder, 5> builders;
-   std::array<Worker, 5> workers;
-   std::array<Gatherer, 5> gatherers;
+   std::array<Builder, 5> builders {
+      Builder{ map },
+      Builder{ map },
+      Builder{ map },
+      Builder{ map },
+      Builder{ map }
+   };
+   std::array<Worker, 5> workers {
+      Worker{ map },
+      Worker{ map },
+      Worker{ map },
+      Worker{ map },
+      Worker{ map }
+   };
+   std::array<Gatherer, 5> gatherers {
+      Gatherer{ map },
+      Gatherer{ map },
+      Gatherer{ map },
+      Gatherer{ map },
+      Gatherer{ map }
+   };
    
-   // w tym momencie ludzie rozpoczną myślenie/jedzenie
-   //map.ready = true;
+   // the simulation begins 
+   map.ready = true;
    
    //ProcessExit processExit{table};
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
    Screen screen;
-   int i{};
-   for(const auto& mapLine : map.mapGraphics) 
-      screen.printLine(mapLine, i++);
-   
+
    while(true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
       screen.clearScreen();
+
+      int i{};
+      for(const auto& mapLine : map.mapGraphics) 
+         screen.printLine(mapLine, i++);
 
       for(auto& builder : builders) {
          screen.printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
