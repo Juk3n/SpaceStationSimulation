@@ -1,3 +1,6 @@
+#ifndef MapFile_H
+#define MapFile_H
+
 #include <fstream>
 #include <iostream>
 
@@ -35,3 +38,5 @@ public:
       return line;
    }
 };
+
+#endif MapFile_H

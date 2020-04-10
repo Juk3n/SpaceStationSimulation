@@ -11,8 +11,19 @@
 #include <memory>
 
 #include "MapFile.hpp"
+#include "Position.hpp"
 
 const int numberOfPhilosophers{5};
+
+// not included to classes, I will add if need to extend graphic features
+struct GraphicRepresentation {
+   std::string graphic;
+
+   GraphicRepresentation(std::string g) : graphic(g) {
+
+   }
+};
+
 
 // Klasa obslugująca wypisywanie tekstu na ekranie 
 class Screen {
@@ -28,18 +39,6 @@ public:
       endwin();
    }
 
-   void xd() {
-      waddch(win, 'a'); 
-      wrefresh(win); 
-      for (size_t i = 0; i < 20; i++)
-      {
-         //y, x
-         wmove(win, i, 40);
-         waddstr(win, "aaaaa");
-      } 
-      wrefresh(win);
-   }
-
    void clearScreen() {
       wclear(win);
    }
@@ -47,6 +46,12 @@ public:
    void clearElement(int xPos, int yPos) {
       wmove(win, yPos, xPos);
       waddch(win, ' ');
+   }
+
+   void printElement(GraphicRepresentation& graphic, Position& position) {
+      wmove(win, position.y, position.x);
+      waddstr(win, graphic.graphic.c_str());        
+      wrefresh(win);	
    }
 
    void printElement(std::string const & text, int xPos, int yPos) {     
@@ -76,70 +81,41 @@ struct Table {
 
 
 
-// not included to classes, I will add if need to extend graphic features
-struct GraphicRepresentation {
-   std::string graphic;
-};
-
-struct Position {
-   int x = 1;
-   int y = 1;
-
-   enum class Direction {
-      LEFT,
-      RIGHT,
-      UP,
-      DOWN
-   };
-
-   // direction are suited to ncurses
-   void move(Direction dir) {
-      switch(dir) {
-         case Direction::UP:
-            y--;
-            break;
-         case Direction::DOWN:
-            y++;
-            break;
-         case Direction::LEFT:
-            x--;
-            break;
-         case Direction::RIGHT:
-            x++;
-            break;
-      }
-   }
-};
-
 struct Mine {
    std::mutex mutex;
    Position position;
+   GraphicRepresentation graphic{"m"};
 };
 
 struct LaserPickaxe {
    std::mutex leftHandMutex;
    std::mutex rightHandMutex;
    Position position;
+   GraphicRepresentation graphic{"p"};
 };
 
 struct Limonium {
    std::mutex mutex;
    Position position;
+   GraphicRepresentation graphic{"l"};
 };
 
 struct Metal {
    std::mutex mutex;
    Position position;
+   GraphicRepresentation graphic{"m"};
 };
 
 struct Wire {
    std::mutex mutex;
    Position position;
+   GraphicRepresentation graphic{"w"};
 };
 
 struct Spaceship {
    std::vector<std::mutex> workplaces;
    Position position;
+   GraphicRepresentation graphic{"s"};
 };
 
 class Map {
@@ -157,6 +133,19 @@ public:
    std::vector<Metal> metals;
    std::vector<Wire> wires;
    Spaceship spaceship;
+
+
+   Map() {     
+      for (size_t i = 0; i < 3; i++) {
+         mines[i].position = { 5, (i + 1) * 10 };
+      }
+
+      for (size_t i = 0; i < 10; i++) {
+         laserPickaxes[i].position = { 15, (i + 1) * 3 };
+      } 
+
+      spaceship.position = Position{ 90, 20 }; 
+   }
 
    void readMapFromFile(std::string fileName) {
       myMapFile file(fileName);
@@ -183,10 +172,10 @@ public:
 
    void live() {
       while(!map.ready) {};
-      
+
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(600));
-         position.move(Position::Direction::DOWN);
+         position.move(Position::Direction::Right);
       }
    }
 
@@ -219,7 +208,7 @@ public:
 
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(700));
-         position.move(Position::Direction::RIGHT);
+         position.move(Position::Direction::Right);
       }
    }
 
@@ -251,8 +240,8 @@ public:
 
       while(true) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500));       
-         position.move(Position::Direction::RIGHT);
-         position.move(Position::Direction::DOWN);
+         position.move(Position::Direction::Right);
+         position.move(Position::Direction::Down);
       }
    }  
 
@@ -408,21 +397,50 @@ void beginSimulation() {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
       screen.clearScreen();
 
+      //printing map
       int i{};
       for(const auto& mapLine : map.mapGraphics) 
          screen.printLine(mapLine, i++);
 
+      //printing threads
       for(auto& builder : builders) {
          screen.printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
-      }
+      }      
 
       for(auto& worker : workers) {
          screen.printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y);
-      }
+      }     
 
       for(auto& gatherer : gatherers) {
          screen.printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y);
       }
+
+      //printing resources
+      screen.printElement(map.spaceship.graphic, map.spaceship.position);
+      
+      for(auto& wire : map.wires) {
+         screen.printElement(wire.graphic, wire.position);
+      }  
+
+      for(auto& metal : map.metals) {
+         screen.printElement(metal.graphic, metal.position);
+      } 
+
+      for(auto& limonium : map.limoniums) {
+         screen.printElement(limonium.graphic, limonium.position);
+      }
+
+      for(auto& limonium : map.limoniums) {
+         screen.printElement(limonium.graphic, limonium.position);
+      }
+
+      for(auto& lasePickaxe : map.laserPickaxes) {
+         screen.printElement(lasePickaxe.graphic, lasePickaxe.position);
+      }
+
+      for(auto& mine : map.mines) {
+         screen.printElement(mine.graphic, mine.position);
+      }     
    } 
    screen.printLine("Waiting for all threads to end...", 18); 
    screen.printLine("Screen is not refreshing now.", 19);
