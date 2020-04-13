@@ -120,7 +120,7 @@ struct Spaceship {
 
 class Map {
 public:
-   std::atomic<bool> ready{ false };
+   std::atomic<bool> ready;
 
    int width;
    int height;
@@ -135,7 +135,9 @@ public:
    Spaceship spaceship;
 
 
-   Map() {     
+   Map() {  
+      ready = false; 
+
       for (size_t i = 0; i < 3; i++) {
          mines[i].position = { 5, (i + 1) * 10 };
       }
@@ -156,6 +158,8 @@ public:
    }
 };
 
+
+
 // Gather Limonium from Mines using LaserPickaxe
 class Gatherer {
    std::thread lifeThread;
@@ -170,10 +174,14 @@ public:
       
    }
 
+   ~Gatherer() {
+      lifeThread.join();
+   }
+
    void live() {
       while(!map.ready) {};
 
-      while(true) {
+      while(map.ready) {
          std::this_thread::sleep_for(std::chrono::milliseconds(600));
          position.move(Position::Direction::Right);
       }
@@ -203,10 +211,14 @@ public:
       
    }
 
+   ~Worker() {
+      lifeThread.join();
+   }
+
    void live() {
       while(!map.ready) {};
 
-      while(true) {
+      while(map.ready) {
          std::this_thread::sleep_for(std::chrono::milliseconds(700));
          position.move(Position::Direction::Right);
       }
@@ -235,10 +247,14 @@ public:
       position = Position{1, 1};
    }
 
+   ~Builder() {
+      lifeThread.join();
+   }
+
    void live() {
       while(!map.ready) {};
 
-      while(true) {
+      while(map.ready) {
          std::this_thread::sleep_for(std::chrono::milliseconds(500));       
          position.move(Position::Direction::Right);
          position.move(Position::Direction::Down);
@@ -333,12 +349,12 @@ public:
 
 // Klasa do obsługi wyjścia z programu przez uzytkownika
 class ProcessExit {
-   Table& table;
+   Map& map;
    std::thread lifeThread;
 
 public:
-   ProcessExit(Table& table) :
-      table(table), lifeThread(&ProcessExit::checkPlayerInputForExit, this)
+   ProcessExit(Map& map) :
+      map(map), lifeThread(&ProcessExit::checkPlayerInputForExit, this)
    {
    }
 
@@ -352,7 +368,7 @@ public:
          std::this_thread::sleep_for(std::chrono::milliseconds(1000));
          char a{ static_cast<char>(getchar()) };
          if(a == 'q') {
-            table.ready = false;
+            map.ready = false;
             return;
          }
       }
@@ -388,12 +404,12 @@ void beginSimulation() {
    // the simulation begins 
    map.ready = true;
    
-   //ProcessExit processExit{table};
+   ProcessExit processExit{ map };
 
    // na głównym wątku odbywa się odświeżanie ekranu i wypisywanie stanu wątków i zasobów
    Screen screen;
 
-   while(true) {
+   while(map.ready) {
       std::this_thread::sleep_for(std::chrono::milliseconds(300));
       screen.clearScreen();
 
@@ -442,8 +458,8 @@ void beginSimulation() {
          screen.printElement(mine.graphic, mine.position);
       }     
    } 
-   screen.printLine("Waiting for all threads to end...", 18); 
-   screen.printLine("Screen is not refreshing now.", 19);
+   screen.printLine("Waiting for all threads to end...", 41); 
+   screen.printLine("Screen is not refreshing now.", 42);
 }
  
 int main() 
