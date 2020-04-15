@@ -79,7 +79,13 @@ struct Table {
 };
 
 
-
+class Goal {
+   Position position;
+public:
+   virtual Position getPosition() {
+      return position;
+   }
+};
 
 struct Mine {
    std::mutex mutex;
@@ -87,11 +93,17 @@ struct Mine {
    GraphicRepresentation graphic{"m"};
 };
 
-struct LaserPickaxe {
+class LaserPickaxe : public Goal {   
+public:
+   Position position;
    std::mutex leftHandMutex;
    std::mutex rightHandMutex;
-   Position position;
+   std::atomic<bool> isUsed{ false };
    GraphicRepresentation graphic{"p"};
+
+   Position getPosition() override {
+      return position;
+   }
 };
 
 struct Limonium {
@@ -139,11 +151,11 @@ public:
       ready = false; 
 
       for (size_t i = 0; i < 3; i++) {
-         mines[i].position = { 5, (i + 1) * 10 };
+         mines[i].position = { 5, static_cast<int>((i + 1) * 10) };
       }
 
       for (size_t i = 0; i < 10; i++) {
-         laserPickaxes[i].position = { 15, (i + 1) * 3 };
+         laserPickaxes[i].position = { 15, static_cast<int>((i + 1) * 3) };
       } 
 
       spaceship.position = Position{ 90, 20 }; 
@@ -166,12 +178,45 @@ class Gatherer {
    Position position;
    std::string graphicRepresentation{"G"};
    Map const& map;
+   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+   
+   Goal* actualGoal;
+   Goal findGoal() {
+
+   }
+
+   int destinationPickaxe;
+
+
+   std::array<LaserPickaxe, 10>& laserPickaxes;
+
+   void findTheClosestLaserPickaxes() {
+
+   }
+
+   //dostaje sie do zlej pozycji (tej z klasy goal)
+   void goToDestination() {
+      if(actualGoal->getPosition().x > position.x)
+         position.move(Position::Direction::Right);
+      else if(actualGoal->getPosition().x < position.x)
+         position.move(Position::Direction::Left);
+
+      if(actualGoal->getPosition().y > position.y)
+         position.move(Position::Direction::Down);
+      else if(actualGoal->getPosition().y < position.y)
+         position.move(Position::Direction::Up);
+   }
 
 public:
-   Gatherer(Map const& map) :
-      map(map), lifeThread(&Gatherer::live, this)
+   Gatherer(Map const& map, std::array<LaserPickaxe, 10>& pickaxes) :
+      map(map), laserPickaxes(pickaxes),  lifeThread(&Gatherer::live, this)
    {
-      
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      static thread_local std::uniform_int_distribution<> range(1, 10);
+      destinationPickaxe = range(mersenne);
+      actualGoal = &(laserPickaxes[destinationPickaxe]);
+      position.x = 90;
+      position.y = 20;
    }
 
    ~Gatherer() {
@@ -182,8 +227,36 @@ public:
       while(!map.ready) {};
 
       while(map.ready) {
+         /*
+            if not at destination
+               go to destination
+            else
+               choice := process destination
+               if choice is pickable
+                  pick up
+               else if choice is mine
+                  use pickaxe and get limonium
+               else if having limonium
+                  put pickaxe on the ground
+               else 
+                  put limonium on the ground
+         */
+
+         /*
+            if(!isAtDestination())
+               moveToDestination();
+            else
+               if(destination == LaserPickaxe)
+                  pickUp(LaserPickaxe);
+               else if(destination == Mine)
+                  mine(Mine);
+               else if(destination == LaserPickaxeArea)
+                  drop(LaserPickaxe);
+               else
+                  drop(Limonium);
+         */
          std::this_thread::sleep_for(std::chrono::milliseconds(600));
-         position.move(Position::Direction::Right);
+         goToDestination();
       }
    }
 
@@ -216,6 +289,17 @@ public:
    }
 
    void live() {
+      /*
+         if not at destination
+            go to destination
+         else
+            choice := process destination
+            if choice is pickable
+               pick up limonium
+            else
+               put metal/wire on the ground
+      */
+
       while(!map.ready) {};
 
       while(map.ready) {
@@ -252,6 +336,17 @@ public:
    }
 
    void live() {
+      /*
+         if not at destination
+            go to destination
+         else
+            choice := process destination
+            if choice is pickable
+               pick up wire/metal
+            else
+               put metal/wire to the spaceship
+      */
+          
       while(!map.ready) {};
 
       while(map.ready) {
@@ -394,11 +489,11 @@ void beginSimulation() {
       Worker{ map }
    };
    std::array<Gatherer, 5> gatherers {
-      Gatherer{ map },
-      Gatherer{ map },
-      Gatherer{ map },
-      Gatherer{ map },
-      Gatherer{ map }
+      Gatherer{ map, map.laserPickaxes },
+      Gatherer{ map, map.laserPickaxes },
+      Gatherer{ map, map.laserPickaxes },
+      Gatherer{ map, map.laserPickaxes },
+      Gatherer{ map, map.laserPickaxes }
    };
    
    // the simulation begins 
@@ -410,7 +505,7 @@ void beginSimulation() {
    Screen screen;
 
    while(map.ready) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(300));
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
       screen.clearScreen();
 
       //printing map
