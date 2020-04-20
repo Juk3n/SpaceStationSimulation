@@ -54,6 +54,16 @@ public:
       wrefresh(win);	
    }
 
+   void printRecElement(GraphicRepresentation& graphic, Position& position, int size) {
+      for(int yLocal = 0; yLocal < size; yLocal++) {
+         for(int xLocal = 0; xLocal < size; xLocal++) {
+            wmove(win, position.y + yLocal, position.x + xLocal);
+            waddstr(win, graphic.graphic.c_str()); 
+         }
+      }
+      wrefresh(win);
+   }
+
    void printElement(std::string const & text, int xPos, int yPos) {     
       wmove(win, yPos, xPos);
       waddstr(win, text.c_str());        
@@ -72,28 +82,33 @@ struct Fork {
    bool isUsed{ false };
 };
 
-struct Table {
-   std::atomic<bool> ready{false}; // zmienna atomowa, poniewaz korzystaja z nie wszystkie watki filozofow w tym samym momencie
-   
-   std::array<Fork, numberOfPhilosophers> forks;
-};
-
 
 class Goal {
    Position position;
 public:
    virtual Position getPosition() {
+      return {-1, -1};
+   }
+};
+
+class Pickable {
+
+};
+
+class Mine : public Goal {
+public:
+   std::mutex mutex;
+   Position position;
+   GraphicRepresentation graphic{"m"};
+
+   std::atomic<bool> isUsed{ false };
+
+   Position getPosition() override {
       return position;
    }
 };
 
-struct Mine {
-   std::mutex mutex;
-   Position position;
-   GraphicRepresentation graphic{"m"};
-};
-
-class LaserPickaxe : public Goal {   
+class LaserPickaxe : public Goal, Pickable {   
 public:
    Position position;
    std::mutex leftHandMutex;
@@ -106,28 +121,37 @@ public:
    }
 };
 
-struct Limonium {
+class Limonium : Pickable {
+public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"l"};
 };
 
-struct Metal {
+class Metal : public Pickable {
+public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"m"};
 };
 
-struct Wire {
+class Wire : public Pickable {
+public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"w"};
 };
 
-struct Spaceship {
+class Spaceship : public Goal {
+public:
    std::vector<std::mutex> workplaces;
    Position position;
+   int size{3};
    GraphicRepresentation graphic{"s"};
+
+   Position getPosition() override {
+      return position;
+   }
 };
 
 class Map {
@@ -158,7 +182,7 @@ public:
          laserPickaxes[i].position = { 15, static_cast<int>((i + 1) * 3) };
       } 
 
-      spaceship.position = Position{ 90, 20 }; 
+      spaceship.position = Position{ 85, 20 }; 
    }
 
    void readMapFromFile(std::string fileName) {
@@ -170,6 +194,10 @@ public:
    }
 };
 
+enum class GoalType {
+   LaserPickaxe,
+   Mine
+};
 
 
 // Gather Limonium from Mines using LaserPickaxe
@@ -177,12 +205,37 @@ class Gatherer {
    std::thread lifeThread;
    Position position;
    std::string graphicRepresentation{"G"};
-   Map const& map;
+   Map& map;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
    
-   Goal* actualGoal;
-   Goal findGoal() {
+   Pickable* pickaxe;
+   Pickable* limonium;
 
+   GoalType actualGoalType;
+   Goal* actualGoal;
+   void findGoal(GoalType type) {
+      switch(type) {
+         case GoalType::LaserPickaxe:
+            actualGoal = findTheNearestLaserPickaxe();
+            break;
+         case GoalType::Mine:
+            actualGoal = findTheNearestMine(); 
+            break;
+      }
+   }
+
+   Goal* findTheNearestLaserPickaxe() {
+      for(auto& pickaxe : map.laserPickaxes) {
+         if(!pickaxe.isUsed)
+            return &pickaxe;
+      }
+   }
+
+   Goal* findTheNearestMine() {
+      for(auto& mine : map.mines) {
+         if(!mine.isUsed)
+            return &mine;
+      }
    }
 
    int destinationPickaxe;
@@ -190,12 +243,18 @@ class Gatherer {
 
    std::array<LaserPickaxe, 10>& laserPickaxes;
 
-   void findTheClosestLaserPickaxes() {
+   
+
+   void pickUp(Goal& item) {
 
    }
 
-   //dostaje sie do zlej pozycji (tej z klasy goal)
-   void goToDestination() {
+   bool isAtGoal() {
+      return (actualGoal->getPosition().x == position.x && 
+         actualGoal->getPosition().y == position.y);
+   }
+
+   void goToGoal() {
       if(actualGoal->getPosition().x > position.x)
          position.move(Position::Direction::Right);
       else if(actualGoal->getPosition().x < position.x)
@@ -207,8 +266,10 @@ class Gatherer {
          position.move(Position::Direction::Up);
    }
 
+
+
 public:
-   Gatherer(Map const& map, std::array<LaserPickaxe, 10>& pickaxes) :
+   Gatherer(Map& map, std::array<LaserPickaxe, 10>& pickaxes) :
       map(map), laserPickaxes(pickaxes),  lifeThread(&Gatherer::live, this)
    {
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -243,20 +304,27 @@ public:
          */
 
          /*
-            if(!isAtDestination())
-               moveToDestination();
+            if(!isAtGoal())
+               moveToGoal();
             else
-               if(destination == LaserPickaxe)
+               if(goal == LaserPickaxe)
                   pickUp(LaserPickaxe);
-               else if(destination == Mine)
+               else if(goal == Mine)
                   mine(Mine);
-               else if(destination == LaserPickaxeArea)
+               else if(goal == LaserPickaxeArea)
                   drop(LaserPickaxe);
                else
                   drop(Limonium);
          */
          std::this_thread::sleep_for(std::chrono::milliseconds(600));
-         goToDestination();
+         if(!isAtGoal())
+            goToGoal();
+         else
+            if(actualGoalType == GoalType::LaserPickaxe)
+               actualGoalType = GoalType::Mine;
+               findGoal(actualGoalType);
+            
+         
       }
    }
 
@@ -371,15 +439,15 @@ public:
 class Philosopher {
    int id;
    std::string state{};
-   Table const& table;
+   //Table const& table;
    Fork& leftFork;
    Fork& rightFork;
    std::thread lifeThread;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
 
 public:
-   Philosopher(int id, Table const & table, Fork & leftFork, Fork & rightFork) :
-      id(id), table(table), leftFork(leftFork), rightFork(rightFork), lifeThread(&Philosopher::dine, this)
+   Philosopher(int id, Fork & leftFork, Fork & rightFork) :
+      id(id), leftFork(leftFork), rightFork(rightFork), lifeThread(&Philosopher::dine, this)
    {
       
    }
@@ -398,12 +466,12 @@ public:
    }
 
    void dine() {
-      while(!table.ready);
+      // while(!table.ready);
 
-      do {
-         think();
-         eat();
-      } while (table.ready);
+      // do {
+      //    think();
+      //    eat();
+      // } while (table.ready);
    }
 
    void think() {
@@ -527,7 +595,7 @@ void beginSimulation() {
       }
 
       //printing resources
-      screen.printElement(map.spaceship.graphic, map.spaceship.position);
+      screen.printRecElement(map.spaceship.graphic, map.spaceship.position, map.spaceship.size);
       
       for(auto& wire : map.wires) {
          screen.printElement(wire.graphic, wire.position);
