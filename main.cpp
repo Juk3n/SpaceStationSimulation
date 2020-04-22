@@ -205,9 +205,10 @@ class Gatherer {
    std::thread lifeThread;
    Position position;
    std::string graphicRepresentation{"G"};
+   int id;
    Map& map;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-   
+   int speed;
    Pickable* pickaxe;
    Pickable* limonium;
 
@@ -269,15 +270,18 @@ class Gatherer {
 
 
 public:
-   Gatherer(Map& map, std::array<LaserPickaxe, 10>& pickaxes) :
-      map(map), laserPickaxes(pickaxes),  lifeThread(&Gatherer::live, this)
+   Gatherer(int id, Map& map, std::array<LaserPickaxe, 10>& pickaxes) :
+      id(id), map(map), laserPickaxes(pickaxes),  lifeThread(&Gatherer::live, this)
    {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-      static thread_local std::uniform_int_distribution<> range(1, 10);
-      destinationPickaxe = range(mersenne);
-      actualGoal = &(laserPickaxes[destinationPickaxe]);
+      findGoal(GoalType::LaserPickaxe);
       position.x = 90;
       position.y = 20;
+      graphicRepresentation += std::to_string(id);
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      static thread_local std::uniform_int_distribution<> range(1, 10);
+
+      speed = 100 * range(mersenne);
    }
 
    ~Gatherer() {
@@ -316,7 +320,10 @@ public:
                else
                   drop(Limonium);
          */
-         std::this_thread::sleep_for(std::chrono::milliseconds(600));
+         
+      
+
+         std::this_thread::sleep_for(std::chrono::milliseconds(speed));
          if(!isAtGoal())
             goToGoal();
          else
@@ -343,11 +350,12 @@ class Worker {
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
    Position position;
    std::string graphicRepresentation{"W"};
+   int id;
    Map const& map;
 
 public:
-   Worker(Map const& map) :
-      map(map), lifeThread(&Worker::live, this)
+   Worker(Map const& map, int id) :
+      map(map), id(id), lifeThread(&Worker::live, this)
    {
       
    }
@@ -550,18 +558,18 @@ void beginSimulation() {
       Builder{ map }
    };
    std::array<Worker, 5> workers {
-      Worker{ map },
-      Worker{ map },
-      Worker{ map },
-      Worker{ map },
-      Worker{ map }
+      Worker{ map, 1 },
+      Worker{ map, 2 },
+      Worker{ map, 3 },
+      Worker{ map, 4 },
+      Worker{ map, 5 }
    };
    std::array<Gatherer, 5> gatherers {
-      Gatherer{ map, map.laserPickaxes },
-      Gatherer{ map, map.laserPickaxes },
-      Gatherer{ map, map.laserPickaxes },
-      Gatherer{ map, map.laserPickaxes },
-      Gatherer{ map, map.laserPickaxes }
+      Gatherer{ 1, map, map.laserPickaxes },
+      Gatherer{ 2, map, map.laserPickaxes },
+      Gatherer{ 3, map, map.laserPickaxes },
+      Gatherer{ 4, map, map.laserPickaxes },
+      Gatherer{ 5, map, map.laserPickaxes }
    };
    
    // the simulation begins 
@@ -621,6 +629,7 @@ void beginSimulation() {
          screen.printElement(mine.graphic, mine.position);
       }     
    } 
+
    screen.printLine("Waiting for all threads to end...", 41); 
    screen.printLine("Screen is not refreshing now.", 42);
 }
