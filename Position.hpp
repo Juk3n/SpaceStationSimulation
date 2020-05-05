@@ -1,5 +1,4 @@
-#ifndef Position_H
-#define Position_H
+#pragma once
 
 struct Position {
    int x = 1;
@@ -30,5 +29,3 @@ struct Position {
       }
    }
 };
-
-#endif Position_H

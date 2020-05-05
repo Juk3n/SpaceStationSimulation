@@ -1,6 +1,5 @@
 #include <iostream> 
 #include <thread>
-#include <ncurses.h>
 #include <array>
 #include <mutex>
 #include <atomic>
@@ -12,276 +11,133 @@
 
 #include "MapFile.hpp"
 #include "Position.hpp"
+#include "Screen.hpp"
+#include "GraphicRepresentation.hpp"
+#include "Resources.hpp"
+#include "Map.hpp"
+#include "ProcessExit.hpp"
 
-const int numberOfPhilosophers{5};
+   struct Flags {
+      std::string picksUp[5];
+   };
 
-// not included to classes, I will add if need to extend graphic features
-struct GraphicRepresentation {
-   std::string graphic;
-
-   GraphicRepresentation(std::string g) : graphic(g) {
-
-   }
-};
-
-
-// Klasa obslugująca wypisywanie tekstu na ekranie 
-class Screen {
-   WINDOW* win;
-public:
-   Screen() {
-      initscr();	
-      win = newwin(43, 132, 0, 0);
-   }
-
-   ~Screen() {
-      delwin(win);
-      endwin();
-   }
-
-   void clearScreen() {
-      wclear(win);
-   }
-
-   void clearElement(int xPos, int yPos) {
-      wmove(win, yPos, xPos);
-      waddch(win, ' ');
-   }
-
-   void printElement(GraphicRepresentation& graphic, Position& position) {
-      wmove(win, position.y, position.x);
-      waddstr(win, graphic.graphic.c_str());        
-      wrefresh(win);	
-   }
-
-   void printRecElement(GraphicRepresentation& graphic, Position& position, int size) {
-      for(int yLocal = 0; yLocal < size; yLocal++) {
-         for(int xLocal = 0; xLocal < size; xLocal++) {
-            wmove(win, position.y + yLocal, position.x + xLocal);
-            waddstr(win, graphic.graphic.c_str()); 
-         }
-      }
-      wrefresh(win);
-   }
-
-   void printElement(std::string const & text, int xPos, int yPos) {     
-      wmove(win, yPos, xPos);
-      waddstr(win, text.c_str());        
-      wrefresh(win);	
-   }
-
-   void printLine(std::string const & text,  int yPos) {
-      wmove(win, yPos, 0);
-      waddstr(win, text.c_str());        
-      wrefresh(win);	
-   }
-};
-
-struct Fork {
-   std::mutex mutex;
-   bool isUsed{ false };
-};
-
-
-class Goal {
-   Position position;
-public:
-   virtual Position getPosition() {
-      return {-1, -1};
-   }
-};
-
-class Pickable {
-
-};
-
-class Mine : public Goal {
-public:
-   std::mutex mutex;
-   Position position;
-   GraphicRepresentation graphic{"m"};
-
-   std::atomic<bool> isUsed{ false };
-
-   Position getPosition() override {
-      return position;
-   }
-};
-
-class LaserPickaxe : public Goal, Pickable {   
-public:
-   Position position;
-   std::mutex leftHandMutex;
-   std::mutex rightHandMutex;
-   std::atomic<bool> isUsed{ false };
-   GraphicRepresentation graphic{"p"};
-
-   Position getPosition() override {
-      return position;
-   }
-};
-
-class Limonium : Pickable {
-public:
-   std::mutex mutex;
-   Position position;
-   GraphicRepresentation graphic{"l"};
-};
-
-class Metal : public Pickable {
-public:
-   std::mutex mutex;
-   Position position;
-   GraphicRepresentation graphic{"m"};
-};
-
-class Wire : public Pickable {
-public:
-   std::mutex mutex;
-   Position position;
-   GraphicRepresentation graphic{"w"};
-};
-
-class Spaceship : public Goal {
-public:
-   std::vector<std::mutex> workplaces;
-   Position position;
-   int size{3};
-   GraphicRepresentation graphic{"s"};
-
-   Position getPosition() override {
-      return position;
-   }
-};
-
-class Map {
-public:
-   std::atomic<bool> ready;
-
-   int width;
-   int height;
-
-   std::vector<std::string> mapGraphics;
-
-   std::array<Mine, 3> mines;
-   std::array<LaserPickaxe, 10> laserPickaxes;
-   std::vector<Limonium> limoniums;
-   std::vector<Metal> metals;
-   std::vector<Wire> wires;
-   Spaceship spaceship;
-
-
-   Map() {  
-      ready = false; 
-
-      for (size_t i = 0; i < 3; i++) {
-         mines[i].position = { 5, static_cast<int>((i + 1) * 10) };
-      }
-
-      for (size_t i = 0; i < 10; i++) {
-         laserPickaxes[i].position = { 15, static_cast<int>((i + 1) * 3) };
-      } 
-
-      spaceship.position = Position{ 85, 20 }; 
-   }
-
-   void readMapFromFile(std::string fileName) {
-      myMapFile file(fileName);
-      width = file.readMapWidth();
-      height = file.readMapHeight();
-      for(int i = 0; i < height; i++)
-         mapGraphics.push_back(file.readNextLine());
-   }
-};
-
-enum class GoalType {
-   LaserPickaxe,
-   Mine
-};
+   Flags flags{ "0", "0", "0", "0", "0" };
 
 
 // Gather Limonium from Mines using LaserPickaxe
 class Gatherer {
-   std::thread lifeThread;
-   Position position;
-   std::string graphicRepresentation{"G"};
-   int id;
-   Map& map;
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-   int speed;
-   Pickable* pickaxe;
-   Pickable* limonium;
 
-   GoalType actualGoalType;
-   Goal* actualGoal;
+   int id;
+   std::string graphicRepresentation{"G"};
+   int speed;
+   Position position;
+   std::thread lifeThread;
+   
+   Map* map;
+
+   Destiny destiny;
+
+   Item* firstItem{ nullptr };
+   Item* secondItem{ nullptr };
+
+   
+
+
+
    void findGoal(GoalType type) {
       switch(type) {
+         Goal* nearestGoal;
          case GoalType::LaserPickaxe:
-            actualGoal = findTheNearestLaserPickaxe();
+            nearestGoal = findTheNearestLaserPickaxe();
+            destiny.setGoal(nearestGoal);            
+            destiny.setItem(&(*(std::next(map->laserPickaxes.begin(), nearestGoal->getID()))));
             break;
          case GoalType::Mine:
-            actualGoal = findTheNearestMine(); 
+            nearestGoal = findTheNearestMine();
+            destiny.setGoal(findTheNearestMine()); 
             break;
       }
    }
 
    Goal* findTheNearestLaserPickaxe() {
-      for(auto& pickaxe : map.laserPickaxes) {
+      for(auto& pickaxe : map->laserPickaxes) {
          if(!pickaxe.isUsed)
             return &pickaxe;
       }
    }
 
    Goal* findTheNearestMine() {
-      for(auto& mine : map.mines) {
+      for(auto& mine : map->mines) {
          if(!mine.isUsed)
             return &mine;
       }
    }
 
-   int destinationPickaxe;
-
-
-   std::array<LaserPickaxe, 10>& laserPickaxes;
-
-   
-
-   void pickUp(Goal& item) {
-
-   }
-
    bool isAtGoal() {
-      return (actualGoal->getPosition().x == position.x && 
-         actualGoal->getPosition().y == position.y);
+      return (destiny.getGoal()->getPositionGoal().x == position.x && 
+         destiny.getGoal()->getPositionGoal().y == position.y);
    }
 
    void goToGoal() {
-      if(actualGoal->getPosition().x > position.x)
+      if(destiny.getGoal()->getPositionGoal().x > position.x) 
          position.move(Position::Direction::Right);
-      else if(actualGoal->getPosition().x < position.x)
+      else if(destiny.getGoal()->getPositionGoal().x < position.x)
          position.move(Position::Direction::Left);
 
-      if(actualGoal->getPosition().y > position.y)
+      if(destiny.getGoal()->getPositionGoal().y > position.y)
          position.move(Position::Direction::Down);
-      else if(actualGoal->getPosition().y < position.y)
+      else if(destiny.getGoal()->getPositionGoal().y < position.y)
          position.move(Position::Direction::Up);
+
+      if(firstItem) 
+         *(firstItem->getPositionItem()) = {position.x - 1, position.y};
+      
+      if(secondItem)         
+         secondItem->position = {position.x, position.y + 1};
    }
 
+   void pick(Item* item) { 
+      item->mutex.lock();  
+      setAttachment(item, true);  
+   }
 
+   void putDown(Item* item) {
+      setAttachment(item, false);
+      item->mutex.unlock();
+   }
 
-public:
-   Gatherer(int id, Map& map, std::array<LaserPickaxe, 10>& pickaxes) :
-      id(id), map(map), laserPickaxes(pickaxes),  lifeThread(&Gatherer::live, this)
-   {
-      findGoal(GoalType::LaserPickaxe);
-      position.x = 90;
-      position.y = 20;
-      graphicRepresentation += std::to_string(id);
+   void setAttachment(Item* item, bool isUsed) {
+      switch(destiny.getGoalType()) {
+         case GoalType::LaserPickaxe:
+            flags.picksUp[id] = "5";
+            firstItem = item;
+            firstItem->setUsing(isUsed);
+            break;
+         case GoalType::Mine:
+            secondItem = item;
+            secondItem->setUsing(isUsed);
+            break;
+      }
+   }
 
+   void setRandomSpeed() {
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
       static thread_local std::uniform_int_distribution<> range(1, 10);
-
       speed = 100 * range(mersenne);
+   }
+
+public:
+   Gatherer(int id, Map* map) :
+      id(id), map(map), lifeThread(&Gatherer::live, this)
+   {
+      findGoal(GoalType::LaserPickaxe);
+
+      position = { 30, 20 };
+
+      graphicRepresentation += std::to_string(id);
+
+      setRandomSpeed();      
    }
 
    ~Gatherer() {
@@ -289,9 +145,9 @@ public:
    }
 
    void live() {
-      while(!map.ready) {};
+      while(!map->ready) {};
 
-      while(map.ready) {
+      while(map->ready) {
          /*
             if not at destination
                go to destination
@@ -321,16 +177,18 @@ public:
                   drop(Limonium);
          */
          
-      
-
          std::this_thread::sleep_for(std::chrono::milliseconds(speed));
-         if(!isAtGoal())
+         if(!isAtGoal()) {
+            findGoal(destiny.getGoalType()); //refresh goal becouse actual goal can be used 
             goToGoal();
-         else
-            if(actualGoalType == GoalType::LaserPickaxe)
-               actualGoalType = GoalType::Mine;
-               findGoal(actualGoalType);
-            
+         }
+         else {
+            if(destiny.getGoalType() == GoalType::LaserPickaxe) {
+               pick(destiny.getItem());
+               destiny.setGoalType(GoalType::Mine);
+               findGoal(destiny.getGoalType());
+            }
+         }   
          
       }
    }
@@ -441,111 +299,6 @@ public:
    }
 };
 
-
-
-// Klasa filozowa, ktora po utworzeniu rozpoczyna dzialanie watku jako funkcji dine()
-class Philosopher {
-   int id;
-   std::string state{};
-   //Table const& table;
-   Fork& leftFork;
-   Fork& rightFork;
-   std::thread lifeThread;
-   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-
-public:
-   Philosopher(int id, Fork & leftFork, Fork & rightFork) :
-      id(id), leftFork(leftFork), rightFork(rightFork), lifeThread(&Philosopher::dine, this)
-   {
-      
-   }
-
-   ~Philosopher()
-   {
-      lifeThread.join();
-   }
-
-   int getID() {
-      return id;
-   }
-
-   std::string getState() {
-      return state;
-   }
-
-   void dine() {
-      // while(!table.ready);
-
-      // do {
-      //    think();
-      //    eat();
-      // } while (table.ready);
-   }
-
-   void think() {
-      state = "is thinking |     |";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-      state = "is thinking |#    |";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000));   
-      state = "is thinking |##   |";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
-      state = "is thinking |###  |";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
-      state = "is thinking |#### |";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
-      state = "is thinking |#####|";
-      std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
-      state = "waiting for food";     
-   }
-
-   // Żeby rozpocząć jedznie, na początek widelce muszę zostać zablokowane przez uzycie lock'a
-   void eat() {
-      std::lock(leftFork.mutex, rightFork.mutex);
-
-      std::lock_guard<std::mutex> leftLock(leftFork.mutex, std::adopt_lock);
-      std::lock_guard<std::mutex> rightLock(rightFork.mutex, std::adopt_lock);
-
-      state = "eating";
-      leftFork.isUsed = true;
-      rightFork.isUsed = true;
-
-      static thread_local std::uniform_int_distribution<> range(1, 1000);
-      std::this_thread::sleep_for(std::chrono::milliseconds(6500 - range(mersenne)));
-
-      state = "finished eating.";
-      leftFork.isUsed = false;
-      rightFork.isUsed = false;
-   }
-};
-
-// Klasa do obsługi wyjścia z programu przez uzytkownika
-class ProcessExit {
-   Map& map;
-   std::thread lifeThread;
-
-public:
-   ProcessExit(Map& map) :
-      map(map), lifeThread(&ProcessExit::checkPlayerInputForExit, this)
-   {
-   }
-
-   ~ProcessExit()
-   {
-      lifeThread.join();
-   }
-
-   void checkPlayerInputForExit() {
-      while(true) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-         char a{ static_cast<char>(getchar()) };
-         if(a == 'q') {
-            map.ready = false;
-            return;
-         }
-      }
-   }
-};
-
 void beginSimulation() {
    Map map{};
    map.readMapFromFile("/home/adrian/Documents/SpaceStationSimulation/map.txt");
@@ -565,11 +318,11 @@ void beginSimulation() {
       Worker{ map, 5 }
    };
    std::array<Gatherer, 5> gatherers {
-      Gatherer{ 1, map, map.laserPickaxes },
-      Gatherer{ 2, map, map.laserPickaxes },
-      Gatherer{ 3, map, map.laserPickaxes },
-      Gatherer{ 4, map, map.laserPickaxes },
-      Gatherer{ 5, map, map.laserPickaxes }
+      Gatherer{ 0, &map },
+      Gatherer{ 1, &map },
+      Gatherer{ 2, &map },
+      Gatherer{ 3, &map },
+      Gatherer{ 4, &map }
    };
    
    // the simulation begins 
@@ -627,7 +380,17 @@ void beginSimulation() {
 
       for(auto& mine : map.mines) {
          screen.printElement(mine.graphic, mine.position);
-      }     
+      }   
+
+      int u{};
+      for(auto& gatherer : gatherers) {
+         screen.printLine("Gatherer #" + std::to_string(u) + " : " + std::to_string(gatherer.getPosition().x) + " " + std::to_string(gatherer.getPosition().y), 23 + u++);
+      }
+      
+      for(int x = 0; x < 5; x++) {
+         screen.printElement(flags.picksUp[x], x, 30);
+      }
+   
    } 
 
    screen.printLine("Waiting for all threads to end...", 41); 
