@@ -24,7 +24,7 @@ public:
 
 class Item {
 public:
-   std::atomic<bool> isUsed{ false };
+   std::atomic<bool> used{ false };
    Position position;
    std::mutex mutex;
 
@@ -32,6 +32,7 @@ public:
       return nullptr;
    }
 
+   virtual bool isUsed() = 0;
    virtual void setUsing(bool isUsed) = 0;
 };
 
@@ -51,13 +52,35 @@ enum class ItemType {
    Limonium
 };
 
+class Rectangle {
+public:
+   int width;
+   int height;
+   Position position;
+};
+
+class Area : public Rectangle, public Goal {
+public: 
+   
+};
+
+class LaserPickaxeArea : public Area {
+public:
+   
+};
+
+class LimoniumArea : public Area {
+public:
+
+};
+
 class Mine : public Goal {
 public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"m"};
 
-   std::atomic<bool> isUsed{ false };
+   std::atomic<int> isUsed{ 0 };
 
    int setID(int id) override {
       ID = id;
@@ -75,7 +98,7 @@ public:
 class LaserPickaxe : public Goal, public Item {   
 public:
    Position position;
-   std::atomic<bool> isUsed{ false };
+   std::atomic<bool> used{ false };
    GraphicRepresentation graphic{"p"};
 
    int setID(int id) override {
@@ -94,8 +117,12 @@ public:
       return &position;
    }
 
+   bool isUsed() override {
+      return used;
+   }
+
    void setUsing(bool isUs) override {
-      isUsed = isUs;
+      used = isUs;
    }
 };
 
@@ -104,8 +131,12 @@ public:
    Position position;
    GraphicRepresentation graphic{"l"};
 
+   bool isUsed() override {
+      return used;
+   }
+
    void setUsing(bool isUs) override {
-      isUsed = isUs;
+      used = isUs;
    }
 
    Position* getPositionItem() override {
@@ -119,8 +150,12 @@ public:
    Position position;
    GraphicRepresentation graphic{"m"};
 
+   bool isUsed() override {
+      return used;
+   }
+
    void setUsing(bool isUs) override {
-      isUsed = isUs;
+      used = isUs;
    }
 
    Position* getPositionItem() override {
@@ -134,8 +169,13 @@ public:
    Position position;
    GraphicRepresentation graphic{"w"};
 
+
+   bool isUsed() override {
+      return used;
+   }
+
    void setUsing(bool isUs) override {
-      isUsed = isUs;
+      used = isUs;
    }
 
    Position* getPositionItem() override {

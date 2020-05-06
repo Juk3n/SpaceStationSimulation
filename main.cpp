@@ -38,12 +38,8 @@ class Gatherer {
 
    Destiny destiny;
 
-   Item* firstItem{ nullptr };
-   Item* secondItem{ nullptr };
-
-   
-
-
+   Item* pickaxePocket{ nullptr };
+   Item* limoniumPocket{ nullptr };
 
    void findGoal(GoalType type) {
       switch(type) {
@@ -62,16 +58,24 @@ class Gatherer {
 
    Goal* findTheNearestLaserPickaxe() {
       for(auto& pickaxe : map->laserPickaxes) {
-         if(!pickaxe.isUsed)
+         if(!pickaxe.isUsed())
             return &pickaxe;
       }
    }
 
    Goal* findTheNearestMine() {
       for(auto& mine : map->mines) {
-         if(!mine.isUsed)
+         if(mine.isUsed < 5)
             return &mine;
       }
+   }
+
+   Goal* findLaserPickaxeArea() {
+
+   }
+
+   Goal* findLimoniumArea() {
+      
    }
 
    bool isAtGoal() {
@@ -80,26 +84,42 @@ class Gatherer {
    }
 
    void goToGoal() {
+      goToGoalHorizontal();
+      if(!isGoalAnArea())
+         goToGoalVertical();      
+
+      if(pickaxePocket) 
+         *(pickaxePocket->getPositionItem()) = {position.x - 1, position.y};
+      
+      if(limoniumPocket)         
+         limoniumPocket->position = {position.x, position.y + 1};
+   }
+
+   bool isGoalAnArea() {
+      return destiny.getGoalType() == GoalType::LaserPickaxeArea || destiny.getGoalType() == GoalType::LimoniumArea;
+   }
+
+   void goToGoalHorizontal() {
       if(destiny.getGoal()->getPositionGoal().x > position.x) 
          position.move(Position::Direction::Right);
       else if(destiny.getGoal()->getPositionGoal().x < position.x)
          position.move(Position::Direction::Left);
+   }
 
+   void goToGoalVertical() {
       if(destiny.getGoal()->getPositionGoal().y > position.y)
          position.move(Position::Direction::Down);
       else if(destiny.getGoal()->getPositionGoal().y < position.y)
          position.move(Position::Direction::Up);
-
-      if(firstItem) 
-         *(firstItem->getPositionItem()) = {position.x - 1, position.y};
-      
-      if(secondItem)         
-         secondItem->position = {position.x, position.y + 1};
    }
 
-   void pick(Item* item) { 
+   bool pick(Item* item) { 
+      if(item->isUsed()) return false;
+
       item->mutex.lock();  
-      setAttachment(item, true);  
+      setAttachment(item, true); 
+
+      return true;
    }
 
    void putDown(Item* item) {
@@ -111,12 +131,20 @@ class Gatherer {
       switch(destiny.getGoalType()) {
          case GoalType::LaserPickaxe:
             flags.picksUp[id] = "5";
-            firstItem = item;
-            firstItem->setUsing(isUsed);
+            pickaxePocket = item;
+            pickaxePocket->setUsing(isUsed);
             break;
          case GoalType::Mine:
-            secondItem = item;
-            secondItem->setUsing(isUsed);
+            limoniumPocket = item;
+            limoniumPocket->setUsing(isUsed);
+            break;
+         case GoalType::LaserPickaxeArea:
+            pickaxePocket->setUsing(isUsed);
+            pickaxePocket = nullptr;
+            break;
+         case GoalType::LimoniumArea:
+            limoniumPocket->setUsing(isUsed);
+            limoniumPocket = nullptr;
             break;
       }
    }
@@ -183,9 +211,28 @@ public:
             goToGoal();
          }
          else {
+            // gatherer jest przy kilofie
             if(destiny.getGoalType() == GoalType::LaserPickaxe) {
-               pick(destiny.getItem());
-               destiny.setGoalType(GoalType::Mine);
+               if(pick(destiny.getItem())) 
+                  destiny.setGoalType(GoalType::Mine);
+               findGoal(destiny.getGoalType());
+            }
+            // gatherer jest w kopalni
+            else if(destiny.getGoalType() == GoalType::Mine) {
+               if(pick(destiny.getItem()))
+                  destiny.setGoalType(GoalType::LaserPickaxeArea);
+               findGoal(destiny.getGoalType());
+            }
+            // gatherer jest na terenie kolofow
+            else if(destiny.getGoalType() == GoalType::LaserPickaxeArea) {
+               putDown(pickaxePocket);
+               destiny.setGoalType(GoalType::LimoniumArea);
+               findGoal(destiny.getGoalType());
+            }
+            // gatherer jest na terenie limonium
+            else if(destiny.getGoalType() == GoalType::LimoniumArea) {
+               putDown(limoniumPocket);
+               destiny.setGoalType(GoalType::LaserPickaxe);
                findGoal(destiny.getGoalType());
             }
          }   
@@ -317,12 +364,17 @@ void beginSimulation() {
       Worker{ map, 4 },
       Worker{ map, 5 }
    };
-   std::array<Gatherer, 5> gatherers {
+   std::array<Gatherer, 10> gatherers {
       Gatherer{ 0, &map },
       Gatherer{ 1, &map },
       Gatherer{ 2, &map },
       Gatherer{ 3, &map },
-      Gatherer{ 4, &map }
+      Gatherer{ 4, &map },
+      Gatherer{ 5, &map },
+      Gatherer{ 6, &map },
+      Gatherer{ 7, &map },
+      Gatherer{ 8, &map },
+      Gatherer{ 9, &map }
    };
    
    // the simulation begins 
@@ -384,7 +436,7 @@ void beginSimulation() {
 
       int u{};
       for(auto& gatherer : gatherers) {
-         screen.printLine("Gatherer #" + std::to_string(u) + " : " + std::to_string(gatherer.getPosition().x) + " " + std::to_string(gatherer.getPosition().y), 23 + u++);
+         screen.printLine("Gatherer #" + std::to_string(u - 1) + " : " + std::to_string(gatherer.getPosition().x) + " " + std::to_string(gatherer.getPosition().y), 23 + u++);
       }
       
       for(int x = 0; x < 5; x++) {
