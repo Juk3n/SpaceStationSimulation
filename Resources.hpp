@@ -8,7 +8,6 @@
 #include "GraphicRepresentation.hpp"
 
 
-
 class Goal {
 protected:
    Position position;
@@ -25,6 +24,7 @@ public:
 class Item {
 public:
    std::atomic<bool> used{ false };
+   std::atomic<bool> onGround{ false };
    Position position;
    std::mutex mutex;
 
@@ -32,6 +32,8 @@ public:
       return nullptr;
    }
 
+   virtual bool isOnGround() = 0;
+   virtual void setOnGround(bool isGround) = 0;
    virtual bool isUsed() = 0;
    virtual void setUsing(bool isUsed) = 0;
 };
@@ -44,12 +46,21 @@ enum class GoalType {
    LaserPickaxe,
    Mine,
    LaserPickaxeArea,
-   LimoniumArea
+   LimoniumArea,
+   MetalWireArea,
+   Limonium,
+   Transforming,
+   TransformingArea,
+   Spaceship,
+   Metal,
+   Wire
 };
 
 enum class ItemType {
    LaserPickaxe,
-   Limonium
+   Limonium,
+   Metal,
+   Wire
 };
 
 class Rectangle {
@@ -66,13 +77,78 @@ public:
 
 class LaserPickaxeArea : public Area {
 public:
-   
+   Position position;
+
+   LaserPickaxeArea() {
+      width = 3;
+      height = 20;
+   }
+
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
 };
 
-class LimoniumArea : public Area {
+class LimoniumArea : public Area {  
 public:
+   Position position;
 
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
 };
+
+class MetalWireArea : public Area {
+public:
+   Position position;
+
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
+};
+
+class TransformingArea: public Area {
+public:
+   Position position;
+
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
+};
+
+
 
 class Mine : public Goal {
 public:
@@ -92,6 +168,10 @@ public:
 
    Position getPositionGoal() override {
       return position;
+   }
+
+   bool used() {
+      return isUsed;
    }
 };
 
@@ -124,12 +204,33 @@ public:
    void setUsing(bool isUs) override {
       used = isUs;
    }
+
+   bool isOnGround() override {
+      return onGround;
+   }
+
+   void setOnGround(bool isGround) override {
+      onGround = isGround; 
+   }
 };
 
-class Limonium : public Item {
+class Limonium : public Goal, public Item {
 public:
    Position position;
+   std::atomic<bool> used{ false };
    GraphicRepresentation graphic{"l"};
+
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
 
    bool isUsed() override {
       return used;
@@ -139,23 +240,51 @@ public:
       used = isUs;
    }
 
+   bool isOnGround() override {
+      return onGround;
+   }
+
+   void setOnGround(bool isGround) override {
+      onGround = isGround; 
+   }
+
    Position* getPositionItem() override {
       return &position;
    }
 };
 
-class Metal : public Item {
+class Metal : public Goal, public Item {
 public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"m"};
 
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
+
    bool isUsed() override {
       return used;
    }
 
    void setUsing(bool isUs) override {
       used = isUs;
+   }
+
+   bool isOnGround() override {
+      return onGround;
+   }
+
+   void setOnGround(bool isGround) override {
+      onGround = isGround; 
    }
 
    Position* getPositionItem() override {
@@ -163,12 +292,24 @@ public:
    }
 };
 
-class Wire : public Item {
+class Wire : public Goal, public Item {
 public:
    std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"w"};
+   std::atomic<bool> used{ false };
 
+   int setID(int id) override {
+      ID = id;
+   }
+
+   int getID() override {
+      return ID;
+   }
+
+   Position getPositionGoal() override {
+      return position;
+   }
 
    bool isUsed() override {
       return used;
@@ -176,6 +317,14 @@ public:
 
    void setUsing(bool isUs) override {
       used = isUs;
+   }
+
+   bool isOnGround() override {
+      return onGround;
+   }
+
+   void setOnGround(bool isGround) override {
+      onGround = isGround; 
    }
 
    Position* getPositionItem() override {
@@ -219,14 +368,7 @@ public:
    }
 
    Item* getItem() {
-      switch(itemType) {
-         case ItemType::LaserPickaxe:
-            return item;
-            break;
-         case ItemType::Limonium:
-            //return Map::createLimonium();
-            break;
-      }
+      return item;
    }
 
    void setItem(Item *i) {

@@ -51,7 +51,24 @@ class Gatherer {
             break;
          case GoalType::Mine:
             nearestGoal = findTheNearestMine();
-            destiny.setGoal(findTheNearestMine()); 
+            destiny.setGoal(nearestGoal);
+            if(destiny.getItem()->isUsed()) {
+               map->limoniumCounter++;
+               destiny.setItem(&(*(std::next(map->limoniums.begin(), map->limoniumCounter))));
+               // Item* nearestItem;
+               // do {
+               //    nearestItem = &(*(std::next(map->limoniums.begin(), map->limoniumCounter)));
+               // } while(nearestItem->isOnGround());              
+               // destiny.setItem(nearestItem);
+            }
+            break;
+         case GoalType::LaserPickaxeArea:
+            nearestGoal = findLaserPickaxeArea();
+            destiny.setGoal(nearestGoal);
+            break;
+         case GoalType::LimoniumArea:
+            nearestGoal = findLimoniumArea();
+            destiny.setGoal(nearestGoal);
             break;
       }
    }
@@ -65,22 +82,27 @@ class Gatherer {
 
    Goal* findTheNearestMine() {
       for(auto& mine : map->mines) {
-         if(mine.isUsed < 5)
+         if(mine.used() < 5)
             return &mine;
       }
    }
 
    Goal* findLaserPickaxeArea() {
-
+      return &(map->laserPickaxeArea);
    }
 
    Goal* findLimoniumArea() {
-      
+      return &(map->limoniumArea);
    }
 
    bool isAtGoal() {
-      return (destiny.getGoal()->getPositionGoal().x == position.x && 
-         destiny.getGoal()->getPositionGoal().y == position.y);
+      if(isGoalAnArea()) {
+         return (destiny.getGoal()->getPositionGoal().x == position.x);
+      }
+      else {
+         return (destiny.getGoal()->getPositionGoal().x == position.x && 
+            destiny.getGoal()->getPositionGoal().y == position.y);
+      }
    }
 
    void goToGoal() {
@@ -92,11 +114,11 @@ class Gatherer {
          *(pickaxePocket->getPositionItem()) = {position.x - 1, position.y};
       
       if(limoniumPocket)         
-         limoniumPocket->position = {position.x, position.y + 1};
+         *(limoniumPocket->getPositionItem()) = {position.x, position.y + 1};
    }
 
    bool isGoalAnArea() {
-      return destiny.getGoalType() == GoalType::LaserPickaxeArea || destiny.getGoalType() == GoalType::LimoniumArea;
+      return (destiny.getGoalType() == GoalType::LaserPickaxeArea || destiny.getGoalType() == GoalType::LimoniumArea);
    }
 
    void goToGoalHorizontal() {
@@ -115,7 +137,7 @@ class Gatherer {
 
    bool pick(Item* item) { 
       if(item->isUsed()) return false;
-
+      
       item->mutex.lock();  
       setAttachment(item, true); 
 
@@ -130,7 +152,7 @@ class Gatherer {
    void setAttachment(Item* item, bool isUsed) {
       switch(destiny.getGoalType()) {
          case GoalType::LaserPickaxe:
-            flags.picksUp[id] = "5";
+            flags.picksUp[id] = "4";
             pickaxePocket = item;
             pickaxePocket->setUsing(isUsed);
             break;
@@ -144,6 +166,7 @@ class Gatherer {
             break;
          case GoalType::LimoniumArea:
             limoniumPocket->setUsing(isUsed);
+            limoniumPocket->setOnGround(true);
             limoniumPocket = nullptr;
             break;
       }
@@ -176,35 +199,6 @@ public:
       while(!map->ready) {};
 
       while(map->ready) {
-         /*
-            if not at destination
-               go to destination
-            else
-               choice := process destination
-               if choice is pickable
-                  pick up
-               else if choice is mine
-                  use pickaxe and get limonium
-               else if having limonium
-                  put pickaxe on the ground
-               else 
-                  put limonium on the ground
-         */
-
-         /*
-            if(!isAtGoal())
-               moveToGoal();
-            else
-               if(goal == LaserPickaxe)
-                  pickUp(LaserPickaxe);
-               else if(goal == Mine)
-                  mine(Mine);
-               else if(goal == LaserPickaxeArea)
-                  drop(LaserPickaxe);
-               else
-                  drop(Limonium);
-         */
-         
          std::this_thread::sleep_for(std::chrono::milliseconds(speed));
          if(!isAtGoal()) {
             findGoal(destiny.getGoalType()); //refresh goal becouse actual goal can be used 
@@ -214,6 +208,7 @@ public:
             // gatherer jest przy kilofie
             if(destiny.getGoalType() == GoalType::LaserPickaxe) {
                if(pick(destiny.getItem())) 
+                  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                   destiny.setGoalType(GoalType::Mine);
                findGoal(destiny.getGoalType());
             }
@@ -251,18 +246,163 @@ public:
 
 // Converts Limonium into Metal or Wire
 class Worker {
-   std::thread lifeThread;
-   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
-   Position position;
-   std::string graphicRepresentation{"W"};
    int id;
-   Map const& map;
+   std::string graphicRepresentation{"W"};
+   int speed;
+   Position position;
+   std::thread lifeThread;
+
+   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+    
+   Map* map;
+
+   Destiny destiny;
+
+   Item* pocket{ nullptr };
+
+   void findGoal(GoalType type) {
+      switch(type) {
+         Goal* nearestGoal;
+         case GoalType::Limonium:
+            nearestGoal = findTheNearestLimonium();
+            destiny.setGoal(nearestGoal);
+
+            if(nearestGoal != nullptr) {
+               destiny.setItem(&(*(std::next(map->limoniums.begin(), nearestGoal->getID()))));
+            }
+            break;
+         case GoalType::TransformingArea:
+            nearestGoal = findTransformingArea();
+            destiny.setGoal(nearestGoal);
+            break;
+         case GoalType::Transforming:
+            nearestGoal = findTransformingArea();
+            destiny.setGoal(nearestGoal);
+            
+            //if(destiny.getItem()->isUsed()) {
+               map->wireCounter++;
+               destiny.setItem(&(*(std::next(map->wires.begin(), map->wireCounter))));
+            //}
+            break;
+         case GoalType::MetalWireArea:
+            nearestGoal = findMetalWireArea();
+            destiny.setGoal(nearestGoal);
+            break;
+         
+      }
+   }
+
+   Goal* findTheNearestLimonium() {
+      for(auto& limonium : map->limoniums) {
+         if(limonium.isOnGround() && !limonium.isUsed())
+            return &limonium;
+      }
+      return nullptr;
+   }
+
+   Goal* findTransformingArea() {
+      return &(map->transformingArea);
+   }
+
+   Goal* findMetalWireArea() {
+      return &(map->metalWireArea);
+   }
+
+
+   bool isAtGoal() {
+      if(destiny.getGoal() == nullptr) return false;
+
+      if(isGoalAnArea()) {
+         return (destiny.getGoal()->getPositionGoal().x == position.x);
+      }
+      else {
+         return (destiny.getGoal()->getPositionGoal().x == position.x && 
+            destiny.getGoal()->getPositionGoal().y == position.y);
+      }
+   }
+
+   void goToGoal() {
+      goToGoalHorizontal();
+      if(!isGoalAnArea())
+         goToGoalVertical();      
+      
+      if(pocket)         
+         *(pocket->getPositionItem()) = {position.x, position.y + 1};
+   }
+
+   bool isGoalAnArea() {
+      return (destiny.getGoalType() == GoalType::MetalWireArea || destiny.getGoalType() == GoalType::TransformingArea || destiny.getGoalType() == GoalType::Transforming);
+   }
+
+   void goToGoalHorizontal() {
+      if(destiny.getGoal()->getPositionGoal().x > position.x) 
+         position.move(Position::Direction::Right);
+      else if(destiny.getGoal()->getPositionGoal().x < position.x)
+         position.move(Position::Direction::Left);
+   }
+
+   void goToGoalVertical() {
+      if(destiny.getGoal()->getPositionGoal().y > position.y)
+         position.move(Position::Direction::Down);
+      else if(destiny.getGoal()->getPositionGoal().y < position.y)
+         position.move(Position::Direction::Up);
+   }
+
+   bool pick(Item* item) { 
+      if(item->isUsed()) return false;
+      
+      item->mutex.lock();  
+      setAttachment(item, true); 
+
+      return true;
+   }
+
+   void putDown(Item* item) {
+      setAttachment(item, false);
+      item->mutex.unlock();
+   }
+
+   void setAttachment(Item* item, bool isUsed) {
+      switch(destiny.getGoalType()) {
+         case GoalType::Limonium:
+            pocket = item;
+            pocket->setUsing(isUsed);
+            break;
+         case GoalType::TransformingArea:
+            pocket->setUsing(isUsed);
+            pocket->setOnGround(isUsed);      
+            pocket = nullptr;
+            break;
+         case GoalType::Transforming:
+            pocket = item;
+            pocket->setUsing(isUsed);
+            break;
+         case GoalType::MetalWireArea:
+            pocket->setUsing(isUsed);
+            pocket->setOnGround(true);
+            pocket = nullptr;
+            break;
+      }
+   }
+
+   void setRandomSpeed() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      static thread_local std::uniform_int_distribution<> range(1, 10);
+      speed = 100 * range(mersenne);
+   }
 
 public:
-   Worker(Map const& map, int id) :
-      map(map), id(id), lifeThread(&Worker::live, this)
+   Worker(int id, Map* map) :
+      id(id), map(map), lifeThread(&Worker::live, this)
    {
-      
+      destiny.setGoalType(GoalType::Limonium);
+      findGoal(GoalType::Limonium);
+
+      position = { 40, 20 };
+
+      graphicRepresentation += std::to_string(id);
+
+      setRandomSpeed();      
    }
 
    ~Worker() {
@@ -270,22 +410,42 @@ public:
    }
 
    void live() {
-      /*
-         if not at destination
-            go to destination
-         else
-            choice := process destination
-            if choice is pickable
-               pick up limonium
-            else
-               put metal/wire on the ground
-      */
+      while(!map->ready) {};
 
-      while(!map.ready) {};
-
-      while(map.ready) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(700));
-         position.move(Position::Direction::Right);
+      while(map->ready) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(speed));
+         if(!isAtGoal()) {
+            findGoal(destiny.getGoalType()); //refresh goal becouse actual goal can be used 
+            if(destiny.getGoal() != nullptr) goToGoal();
+         }
+         else {
+            // worker jest na terenie limonium
+            if(destiny.getGoalType() == GoalType::Limonium) {
+               if(pick(destiny.getItem())) {
+                  destiny.setGoalType(GoalType::TransformingArea);
+               }
+               findGoal(destiny.getGoalType());
+            }
+            // worker jest na terenie przerabiania
+            else if(destiny.getGoalType() == GoalType::TransformingArea) {
+               putDown(destiny.getItem());
+               destiny.setGoalType(GoalType::Transforming);
+               findGoal(destiny.getGoalType());
+            }
+            //tutaj sie dzieje przerabianie
+            else if(destiny.getGoalType() == GoalType::Transforming) {
+               if(pick(destiny.getItem())) {
+                  destiny.setGoalType(GoalType::MetalWireArea);
+               }
+               findGoal(destiny.getGoalType());
+            }
+            // worker jest na terenie MetalWire
+            else if(destiny.getGoalType() == GoalType::MetalWireArea) {
+               putDown(destiny.getItem());
+               destiny.setGoalType(GoalType::Limonium);
+               findGoal(destiny.getGoalType());
+            }
+         }
       }
    }
 
@@ -300,40 +460,178 @@ public:
 
 // Gets Metal or Wire and carries it to the Spaceship
 class Builder {
-   std::thread lifeThread;
-   Position position;
+   int id;
    std::string graphicRepresentation{"B"};
-   Map const& map;
+   int speed;
+   Position position;
+   std::thread lifeThread;
+
+   std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
+    
+   Map* map;
+
+   Destiny destiny;
+
+   Item* pocket{ nullptr };
+
+   void findGoal(GoalType type) {
+      switch(type) {
+         Goal* nearestGoal;
+         case GoalType::Wire:
+            nearestGoal = findTheNearestWire();
+            destiny.setGoal(nearestGoal);
+
+            if(nearestGoal != nullptr) {
+               destiny.setItem(&(*(std::next(map->wires.begin(), nearestGoal->getID()))));
+            }
+            break;
+         case GoalType::Metal:
+            nearestGoal = findTheNearestMetal();
+            destiny.setGoal(nearestGoal);
+
+            if(nearestGoal != nullptr) {
+               destiny.setItem(&(*(std::next(map->metals.begin(), nearestGoal->getID()))));
+            }
+            break;
+         case GoalType::Spaceship:
+            nearestGoal = findSpaceship();
+            destiny.setGoal(nearestGoal);
+            break;
+      }
+   }
+
+   Goal* findTheNearestMetal() {
+      for(auto& metal : map->metals) {
+         if(metal.isOnGround() && !metal.isUsed())
+            return &metal;
+      }
+      return nullptr;
+   }
+
+   Goal* findTheNearestWire() {
+      for(auto& wire : map->wires) {
+         if(wire.isOnGround() && !wire.isUsed())
+            return &wire;
+      }
+      return nullptr;
+   }
+
+   Goal* findSpaceship() {
+      return &(map->spaceship);
+   }
+
+
+
+   bool isAtGoal() {
+      if(destiny.getGoal() == nullptr) return false;
+
+      return (destiny.getGoal()->getPositionGoal().x == position.x && 
+            destiny.getGoal()->getPositionGoal().y == position.y);
+   }
+
+   void goToGoal() {
+      goToGoalHorizontal();
+      goToGoalVertical();      
+      
+      if(pocket)         
+         *(pocket->getPositionItem()) = {position.x, position.y + 1};
+   }
+
+   void goToGoalHorizontal() {
+      if(destiny.getGoal()->getPositionGoal().x > position.x) 
+         position.move(Position::Direction::Right);
+      else if(destiny.getGoal()->getPositionGoal().x < position.x)
+         position.move(Position::Direction::Left);
+   }
+
+   void goToGoalVertical() {
+      if(destiny.getGoal()->getPositionGoal().y > position.y)
+         position.move(Position::Direction::Down);
+      else if(destiny.getGoal()->getPositionGoal().y < position.y)
+         position.move(Position::Direction::Up);
+   }
+
+   bool pick(Item* item) { 
+      if(item->isUsed()) return false;
+      
+      item->mutex.lock();  
+      setAttachment(item, true); 
+
+      return true;
+   }
+
+   void putDown(Item* item) {
+      setAttachment(item, false);
+      item->mutex.unlock();
+   }
+
+   void setAttachment(Item* item, bool isUsed) {
+      switch(destiny.getGoalType()) {
+         case GoalType::Metal:
+            pocket = item;
+            pocket->setUsing(isUsed);
+            break;
+         case GoalType::Wire:
+            pocket = item;
+            pocket->setUsing(isUsed);      
+            break;
+         case GoalType::Spaceship:
+            pocket->setUsing(isUsed);
+            pocket->setOnGround(isUsed);      
+            pocket = nullptr;
+            break;
+      }
+   }
+
+   void setRandomSpeed() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      static thread_local std::uniform_int_distribution<> range(1, 10);
+      speed = 100 * range(mersenne);
+   }
 
 public:
-   Builder(Map const& map) :
-      map(map), lifeThread(&Builder::live, this)
+   Builder(int id, Map* map) :
+      id(id), map(map), lifeThread(&Builder::live, this)
    {
-      position = Position{1, 1};
+      destiny.setGoalType(GoalType::Wire);
+      findGoal(GoalType::Wire);
+
+      position = { 40, 20 };
+
+      graphicRepresentation += std::to_string(id);
+
+      setRandomSpeed();      
    }
 
    ~Builder() {
       lifeThread.join();
    }
 
-   void live() {
-      /*
-         if not at destination
-            go to destination
-         else
-            choice := process destination
-            if choice is pickable
-               pick up wire/metal
-            else
-               put metal/wire to the spaceship
-      */
-          
-      while(!map.ready) {};
+   void live() {  
+      while(!map->ready) {};
 
-      while(map.ready) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(500));       
-         position.move(Position::Direction::Right);
-         position.move(Position::Direction::Down);
+      while(map->ready) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(speed));
+         if(!isAtGoal()) {
+            findGoal(destiny.getGoalType()); //refresh goal becouse actual goal can be used 
+            if(destiny.getGoal() != nullptr) goToGoal();
+         }
+         else {
+            // builder jest na terenie metalwire
+            if(destiny.getGoalType() == GoalType::Metal || destiny.getGoalType() == GoalType::Wire) {
+               if(pick(destiny.getItem())) {
+                  destiny.setGoalType(GoalType::Spaceship);
+               }
+               findGoal(destiny.getGoalType());
+            }
+            // builder jest przy rakiecie
+            else if(destiny.getGoalType() == GoalType::Spaceship) {
+               putDown(destiny.getItem());
+               //tutaj niech losowo bierze
+               destiny.setGoalType(GoalType::Wire);
+               findGoal(destiny.getGoalType());
+            }
+         }
       }
    }  
 
@@ -350,21 +648,41 @@ void beginSimulation() {
    Map map{};
    map.readMapFromFile("/home/adrian/Documents/SpaceStationSimulation/map.txt");
    
-   std::array<Builder, 5> builders {
-      Builder{ map },
-      Builder{ map },
-      Builder{ map },
-      Builder{ map },
-      Builder{ map }
+   std::array<Builder, 15> builders {
+      Builder{ 0, &map },
+      Builder{ 1, &map },
+      Builder{ 2, &map },
+      Builder{ 3, &map },
+      Builder{ 4, &map },
+      Builder{ 5, &map },
+      Builder{ 6, &map },
+      Builder{ 7, &map },
+      Builder{ 8, &map },
+      Builder{ 9, &map },
+      Builder{ 10, &map },
+      Builder{ 11, &map },
+      Builder{ 12, &map },
+      Builder{ 13, &map },
+      Builder{ 14, &map }
    };
-   std::array<Worker, 5> workers {
-      Worker{ map, 1 },
-      Worker{ map, 2 },
-      Worker{ map, 3 },
-      Worker{ map, 4 },
-      Worker{ map, 5 }
+   std::array<Worker, 15> workers {
+      Worker{ 0, &map },
+      Worker{ 1, &map },
+      Worker{ 2, &map },
+      Worker{ 3, &map },
+      Worker{ 4, &map },
+      Worker{ 5, &map },
+      Worker{ 6, &map },
+      Worker{ 7, &map },
+      Worker{ 8, &map },
+      Worker{ 9, &map },
+      Worker{ 10, &map },
+      Worker{ 11, &map },
+      Worker{ 12, &map },
+      Worker{ 13, &map },
+      Worker{ 14, &map } 
    };
-   std::array<Gatherer, 10> gatherers {
+   std::array<Gatherer, 15> gatherers {
       Gatherer{ 0, &map },
       Gatherer{ 1, &map },
       Gatherer{ 2, &map },
@@ -374,7 +692,12 @@ void beginSimulation() {
       Gatherer{ 6, &map },
       Gatherer{ 7, &map },
       Gatherer{ 8, &map },
-      Gatherer{ 9, &map }
+      Gatherer{ 9, &map },
+      Gatherer{ 10, &map },
+      Gatherer{ 11, &map },
+      Gatherer{ 12, &map },
+      Gatherer{ 13, &map },
+      Gatherer{ 14, &map }
    };
    
    // the simulation begins 
@@ -442,6 +765,7 @@ void beginSimulation() {
       for(int x = 0; x < 5; x++) {
          screen.printElement(flags.picksUp[x], x, 30);
       }
+      screen.printElement(std::to_string(map.wireCounter), 6, 30);
    
    } 
 
