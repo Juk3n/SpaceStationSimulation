@@ -150,13 +150,13 @@ public:
 
 
 
-class Mine : public Goal {
+class Mine : public Goal, public Item {
 public:
-   std::mutex mutex;
+   //std::mutex mutex;
    Position position;
    GraphicRepresentation graphic{"m"};
 
-   std::atomic<int> isUsed{ 0 };
+   std::atomic<int> used{ 0 };
 
    int setID(int id) override {
       ID = id;
@@ -170,8 +170,24 @@ public:
       return position;
    }
 
-   bool used() {
-      return isUsed;
+   bool isUsed() override {
+      return used;
+   }
+
+   void setUsing(bool isUs) override {
+      used = isUs;
+   }
+
+   bool isOnGround() override {
+      return onGround;
+   }
+
+   void setOnGround(bool isGround) override {
+      onGround = isGround; 
+   }
+
+   Position* getPositionItem() override {
+      return &position;
    }
 };
 

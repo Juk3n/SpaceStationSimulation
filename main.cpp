@@ -55,11 +55,6 @@ class Gatherer {
             if(destiny.getItem()->isUsed()) {
                map->limoniumCounter++;
                destiny.setItem(&(*(std::next(map->limoniums.begin(), map->limoniumCounter))));
-               // Item* nearestItem;
-               // do {
-               //    nearestItem = &(*(std::next(map->limoniums.begin(), map->limoniumCounter)));
-               // } while(nearestItem->isOnGround());              
-               // destiny.setItem(nearestItem);
             }
             break;
          case GoalType::LaserPickaxeArea:
@@ -82,7 +77,7 @@ class Gatherer {
 
    Goal* findTheNearestMine() {
       for(auto& mine : map->mines) {
-         if(mine.used() < 5)
+         if(!mine.isUsed())
             return &mine;
       }
    }
@@ -152,7 +147,6 @@ class Gatherer {
    void setAttachment(Item* item, bool isUsed) {
       switch(destiny.getGoalType()) {
          case GoalType::LaserPickaxe:
-            flags.picksUp[id] = "4";
             pickaxePocket = item;
             pickaxePocket->setUsing(isUsed);
             break;
@@ -208,13 +202,15 @@ public:
             // gatherer jest przy kilofie
             if(destiny.getGoalType() == GoalType::LaserPickaxe) {
                if(pick(destiny.getItem())) 
-                  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                   destiny.setGoalType(GoalType::Mine);
                findGoal(destiny.getGoalType());
             }
             // gatherer jest w kopalni
             else if(destiny.getGoalType() == GoalType::Mine) {
                if(pick(destiny.getItem()))
+                  map->mines[destiny.getGoal()->getID()].setUsing(true);
+                  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                  map->mines[destiny.getGoal()->getID()].setUsing(false);
                   destiny.setGoalType(GoalType::LaserPickaxeArea);
                findGoal(destiny.getGoalType());
             }
@@ -279,10 +275,14 @@ class Worker {
             nearestGoal = findTransformingArea();
             destiny.setGoal(nearestGoal);
             
-            //if(destiny.getItem()->isUsed()) {
+            static thread_local std::uniform_int_distribution<> range(0, 1);
+            if(range(mersenne)) {
                map->wireCounter++;
                destiny.setItem(&(*(std::next(map->wires.begin(), map->wireCounter))));
-            //}
+            } else {
+               map->metalCounter++;
+               destiny.setItem(&(*(std::next(map->metals.begin(), map->metalCounter))));
+            }
             break;
          case GoalType::MetalWireArea:
             nearestGoal = findMetalWireArea();
