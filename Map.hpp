@@ -28,6 +28,8 @@ public:
    std::array<Wire, 1000> wires;
    int wireCounter{};
 
+   int metalCollected{};
+   int wireCollected{};
    Spaceship spaceship;
    LaserPickaxeArea laserPickaxeArea;
    LimoniumArea limoniumArea;

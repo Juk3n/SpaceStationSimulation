@@ -276,7 +276,7 @@ class Worker {
             destiny.setGoal(nearestGoal);
             
             static thread_local std::uniform_int_distribution<> range(0, 1);
-            if(range(mersenne)) {
+            if(range(mersenne) == 1) {
                map->wireCounter++;
                destiny.setItem(&(*(std::next(map->wires.begin(), map->wireCounter))));
             } else {
@@ -287,8 +287,7 @@ class Worker {
          case GoalType::MetalWireArea:
             nearestGoal = findMetalWireArea();
             destiny.setGoal(nearestGoal);
-            break;
-         
+            break;         
       }
    }
 
@@ -470,6 +469,7 @@ class Builder {
     
    Map* map;
 
+   bool givePointsTo{};
    Destiny destiny;
 
    Item* pocket{ nullptr };
@@ -593,7 +593,14 @@ public:
    Builder(int id, Map* map) :
       id(id), map(map), lifeThread(&Builder::live, this)
    {
-      destiny.setGoalType(GoalType::Wire);
+      static thread_local std::uniform_int_distribution<> range(0, 1);
+      if(range(mersenne) == 1) {
+         givePointsTo = true;
+         destiny.setGoalType(GoalType::Wire);
+      } else {
+         givePointsTo = false;
+         destiny.setGoalType(GoalType::Metal);
+      }
       findGoal(GoalType::Wire);
 
       position = { 40, 20 };
@@ -627,8 +634,21 @@ public:
             // builder jest przy rakiecie
             else if(destiny.getGoalType() == GoalType::Spaceship) {
                putDown(destiny.getItem());
+               if(givePointsTo)
+                  map->wireCollected++;
+               else
+                  map->metalCollected++;
+
                //tutaj niech losowo bierze
-               destiny.setGoalType(GoalType::Wire);
+               static thread_local std::uniform_int_distribution<> range(0, 1);
+               if(range(mersenne) == 1) {
+                  destiny.setGoalType(GoalType::Wire);
+                  givePointsTo = true;
+               } else {
+                  givePointsTo = false;
+                  destiny.setGoalType(GoalType::Metal);
+               }
+               
                findGoal(destiny.getGoalType());
             }
          }
@@ -719,34 +739,28 @@ void beginSimulation() {
 
       //printing threads
       for(auto& builder : builders) {
-         screen.printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y);
+         screen.printElement(builder.getGraphicRepresentation(), builder.getPosition().x, builder.getPosition().y, 1);
       }      
 
       for(auto& worker : workers) {
-         screen.printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y);
+         screen.printElement(worker.getGraphicRepresentation(), worker.getPosition().x, worker.getPosition().y, 2);
       }     
 
       for(auto& gatherer : gatherers) {
-         screen.printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y);
+         screen.printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y, 3);
       }
 
-      //printing resources
-      screen.printRecElement(map.spaceship.graphic, map.spaceship.position, map.spaceship.size);
-      
+      //printing resources        
       for(auto& wire : map.wires) {
-         screen.printElement(wire.graphic, wire.position);
+         screen.printElement(wire.graphic, wire.position, 6);
       }  
 
       for(auto& metal : map.metals) {
-         screen.printElement(metal.graphic, metal.position);
+         screen.printElement(metal.graphic, metal.position, 5);
       } 
 
       for(auto& limonium : map.limoniums) {
-         screen.printElement(limonium.graphic, limonium.position);
-      }
-
-      for(auto& limonium : map.limoniums) {
-         screen.printElement(limonium.graphic, limonium.position);
+         screen.printElement(limonium.graphic, limonium.position, 4);
       }
 
       for(auto& lasePickaxe : map.laserPickaxes) {
@@ -757,10 +771,13 @@ void beginSimulation() {
          screen.printElement(mine.graphic, mine.position);
       }   
 
-      int u{};
-      for(auto& gatherer : gatherers) {
-         screen.printLine("Gatherer #" + std::to_string(u - 1) + " : " + std::to_string(gatherer.getPosition().x) + " " + std::to_string(gatherer.getPosition().y), 23 + u++);
-      }
+      screen.printRecElement(map.spaceship.graphic, map.spaceship.position, map.spaceship.size);
+
+
+      //additional info
+      screen.printLine("Collecter Wire: " + std::to_string(map.wireCollected), 25);
+      screen.printLine("Collecter Metal: " + std::to_string(map.metalCollected), 26);
+      
       
       for(int x = 0; x < 5; x++) {
          screen.printElement(flags.picksUp[x], x, 30);
