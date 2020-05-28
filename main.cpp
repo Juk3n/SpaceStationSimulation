@@ -17,13 +17,6 @@
 #include "Map.hpp"
 #include "ProcessExit.hpp"
 
-   struct Flags {
-      std::string picksUp[5];
-   };
-
-   Flags flags{ "0", "0", "0", "0", "0" };
-
-
 // Gather Limonium from Mines using LaserPickaxe
 class Gatherer {
    std::mt19937 mersenne{ static_cast<std::mt19937::result_type>(std::time(nullptr)) };
@@ -276,7 +269,7 @@ class Worker {
             destiny.setGoal(nearestGoal);
             
             static thread_local std::uniform_int_distribution<> range(0, 1);
-            if(range(mersenne) == 1) {
+            if(range(mersenne)) {
                map->wireCounter++;
                destiny.setItem(&(*(std::next(map->wires.begin(), map->wireCounter))));
             } else {
@@ -287,7 +280,8 @@ class Worker {
          case GoalType::MetalWireArea:
             nearestGoal = findMetalWireArea();
             destiny.setGoal(nearestGoal);
-            break;         
+            break;
+         
       }
    }
 
@@ -469,9 +463,8 @@ class Builder {
     
    Map* map;
 
-   bool givePointsTo{};
    Destiny destiny;
-
+   bool givePointsTo{};
    Item* pocket{ nullptr };
 
    void findGoal(GoalType type) {
@@ -648,7 +641,6 @@ public:
                   givePointsTo = false;
                   destiny.setGoalType(GoalType::Metal);
                }
-               
                findGoal(destiny.getGoalType());
             }
          }
@@ -750,9 +742,9 @@ void beginSimulation() {
          screen.printElement(gatherer.getGraphicRepresentation(), gatherer.getPosition().x, gatherer.getPosition().y, 3);
       }
 
-      //printing resources        
+      //printing resources  
       for(auto& wire : map.wires) {
-         screen.printElement(wire.graphic, wire.position, 6);
+         screen.printElement(wire.graphic, wire.position, 4);
       }  
 
       for(auto& metal : map.metals) {
@@ -760,7 +752,7 @@ void beginSimulation() {
       } 
 
       for(auto& limonium : map.limoniums) {
-         screen.printElement(limonium.graphic, limonium.position, 4);
+         screen.printElement(limonium.graphic, limonium.position, 6);
       }
 
       for(auto& lasePickaxe : map.laserPickaxes) {
@@ -773,16 +765,9 @@ void beginSimulation() {
 
       screen.printRecElement(map.spaceship.graphic, map.spaceship.position, map.spaceship.size);
 
-
-      //additional info
+      //print info
       screen.printLine("Collecter Wire: " + std::to_string(map.wireCollected), 25);
       screen.printLine("Collecter Metal: " + std::to_string(map.metalCollected), 26);
-      
-      
-      for(int x = 0; x < 5; x++) {
-         screen.printElement(flags.picksUp[x], x, 30);
-      }
-      screen.printElement(std::to_string(map.wireCounter), 6, 30);
    
    } 
 

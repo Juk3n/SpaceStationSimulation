@@ -5,8 +5,6 @@
 #include "GraphicRepresentation.hpp"
 #include "Position.hpp"
 
-#define PLAYER_PAIR 4
-
 class Screen {
    WINDOW* win;
 public:
